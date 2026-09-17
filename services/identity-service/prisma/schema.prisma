@@ -1,0 +1,78 @@
+generator client {
+ provider = "prisma-client"
+ output = "../src/generated/prisma"
+ moduleFormat = "cjs"
+}
+datasource db {
+ provider = "postgresql"
+}
+enum Role {
+ OWNER
+ ADMIN
+ OPERATOR
+ VIEWER
+}
+enum UserStatus {
+ ACTIVE
+ INACTIVE
+ LOCKED
+}
+enum AuditEvent {
+ LOGIN_SUCCESS
+ LOGIN_FAILURE
+ ACCOUNT_LOCKED
+ TOKEN_REFRESHED
+ REFRESH_REUSE_DETECTED
+ LOGOUT
+ LOGOUT_ALL
+ PASSWORD_CHANGED
+ OWNER_BOOTSTRAPPED
+}
+model User {
+ id String @id @default(uuid()) @db.Uuid
+ email String @unique @db.VarChar(254)
+ displayName String @db.VarChar(100)
+ passwordHash String
+ role Role
+ status UserStatus @default(ACTIVE)
+ failedLoginAttempts Int @default(0)
+ lockedUntil DateTime? @db.Timestamptz(3)
+ passwordChangedAt DateTime @default(now()) @db.Timestamptz(3)
+ lastLoginAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ sessions RefreshSession[]
+ auditLogs AuthAuditLog[]
+}
+model RefreshSession {
+ id String @id @default(uuid()) @db.Uuid
+ userId String @db.Uuid
+ user User @relation(fields:[userId],references:[id],onDelete:Restrict)
+ familyId String @db.Uuid
+ tokenHash String @unique @db.Char(64)
+ expiresAt DateTime @db.Timestamptz(3)
+ revokedAt DateTime? @db.Timestamptz(3)
+ replacedBySessionId String? @unique @db.Uuid
+ replacedBy RefreshSession? @relation("rotation",fields:[replacedBySessionId],references:[id],onDelete:Restrict)
+ previous RefreshSession? @relation("rotation")
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ lastUsedAt DateTime? @db.Timestamptz(3)
+ userAgent String? @db.VarChar(256)
+ correlationId String? @db.VarChar(128)
+ @@index([userId,revokedAt])
+ @@index([familyId])
+ @@index([expiresAt])
+}
+model AuthAuditLog {
+ id String @id @default(uuid()) @db.Uuid
+ userId String? @db.Uuid
+ user User? @relation(fields:[userId],references:[id],onDelete:Restrict)
+ eventType AuditEvent
+ success Boolean
+ correlationId String? @db.VarChar(128)
+ userAgent String? @db.VarChar(256)
+ metadata Json @default("{}")
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@index([userId,createdAt])
+}
+

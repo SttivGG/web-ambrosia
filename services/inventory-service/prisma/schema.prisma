@@ -1,0 +1,9 @@
+// Fase 0: deliberadamente sin modelos de negocio.
+generator client {
+ provider = "prisma-client"
+ output = "../src/generated/prisma"
+ moduleFormat = "cjs"
+}
+datasource db {
+ provider = "postgresql"
+}

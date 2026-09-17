@@ -1,0 +1,185 @@
+name: ambrosia
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?required}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?required}
+      PRODUCTION_DB_PASSWORD: ${PRODUCTION_DB_PASSWORD:?required}
+      FINANCE_DB_PASSWORD: ${FINANCE_DB_PASSWORD:?required}
+      IDENTITY_DATABASE_PASSWORD: ${IDENTITY_DATABASE_PASSWORD:?required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [private]
+  identity-db-provision:
+    image: postgres:17.6-alpine
+    restart: 'no'
+    environment:
+      POSTGRES_ADMIN_USER: ${POSTGRES_ADMIN_USER:?required}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?required}
+      IDENTITY_DATABASE_NAME: ${IDENTITY_DATABASE_NAME:-ambrosia_identity}
+      IDENTITY_DATABASE_USER: ${IDENTITY_DATABASE_USER:-identity_user}
+      IDENTITY_DATABASE_PASSWORD: ${IDENTITY_DATABASE_PASSWORD:?required}
+    volumes:
+      - ./postgres/provision-identity.sh:/provision-identity.sh:ro
+    entrypoint: [/bin/sh, /provision-identity.sh]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+  nats:
+    build:
+      context: ..
+      dockerfile: infrastructure/nats/Dockerfile
+    user: '1000:1000'
+    restart: unless-stopped
+    command: [-c, /etc/nats/nats.conf]
+    environment:
+      NATS_USER: ${NATS_USER:?required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?required}
+    volumes:
+      - nats_data:/data
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'wget -q -O /dev/null "http://127.0.0.1:8222/healthz?js-enabled-only=true"',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [private]
+  inventory-service:
+    build:
+      context: ..
+      dockerfile: services/inventory-service/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://inventory_user:${INVENTORY_DB_PASSWORD:?required}@postgres:5432/ambrosia_inventory
+      NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+    networks: [private]
+  production-service:
+    build:
+      context: ..
+      dockerfile: services/production-service/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: postgresql://production_user:${PRODUCTION_DB_PASSWORD:?required}@postgres:5432/ambrosia_production
+      NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+    networks: [private]
+  finance-reporting-service:
+    build:
+      context: ..
+      dockerfile: services/finance-reporting-service/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      DATABASE_URL: postgresql://finance_user:${FINANCE_DB_PASSWORD:?required}@postgres:5432/ambrosia_finance_reports
+      NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+    networks: [private]
+  identity-migrate:
+    build:
+      context: ..
+      dockerfile: services/identity-service/Dockerfile
+      target: migrator
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://${IDENTITY_DATABASE_USER:-identity_user}:${IDENTITY_DATABASE_PASSWORD:?required}@postgres:5432/${IDENTITY_DATABASE_NAME:-ambrosia_identity}
+    depends_on:
+      identity-db-provision:
+        condition: service_completed_successfully
+    networks: [private]
+  identity-service:
+    build:
+      context: ..
+      dockerfile: services/identity-service/Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../secrets/auth.local.env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3004
+      DATABASE_URL: postgresql://${IDENTITY_DATABASE_USER:-identity_user}:${IDENTITY_DATABASE_PASSWORD:?required}@postgres:5432/${IDENTITY_DATABASE_NAME:-ambrosia_identity}
+      NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+      JWT_ISSUER: ${JWT_ISSUER:?required}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?required}
+      JWT_KEY_ID: ${JWT_KEY_ID:?required}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      AUTH_REFRESH_TTL_SECONDS: ${AUTH_REFRESH_TTL_SECONDS:-604800}
+      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-20}
+      AUTH_LOGIN_RATE_WINDOW_SECONDS: ${AUTH_LOGIN_RATE_WINDOW_SECONDS:-60}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_REFRESH_COOKIE_PATH: ${AUTH_REFRESH_COOKIE_PATH:-/api/auth}
+    depends_on:
+      identity-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+    networks: [private]
+  admin-web:
+    build:
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    networks: [private]
+  gateway:
+    image: nginxinc/nginx-unprivileged:1.28.0-alpine
+    restart: unless-stopped
+    ports: ['${GATEWAY_PORT:-8080}:8080']
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test:
+        [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/gateway/health']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks: [private, edge]
+volumes:
+  postgres_data:
+  nats_data:
+networks:
+  private:
+    internal: true
+  edge:

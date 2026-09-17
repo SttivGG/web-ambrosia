@@ -1,0 +1,94 @@
+@import 'tailwindcss';
+:root {
+  --background: #f8f7f3;
+  --foreground: #262c26;
+  --green: #285341;
+  --muted: #57534e;
+}
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 5px;
+}
+.brand {
+  font-family: Georgia, serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+}
+.brand-dot {
+  color: var(--green);
+}
+h1 {
+  font-family: Georgia, serif;
+}
+.eyebrow {
+  color: var(--green);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+.refresh {
+  min-height: 44px;
+  background: var(--green);
+  color: white;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.refresh:hover {
+  background: #193d2d;
+}
+.refresh:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.service-card {
+  padding: 28px;
+  border: 1px solid #deded4;
+  border-radius: 12px;
+  background: #fff;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status-checking {
+  background: #f1efe8;
+  color: #645728;
+}
+.status-available {
+  background: #e9f2eb;
+  color: #245339;
+}
+.status-unavailable {
+  background: #fcefed;
+  color: #97382d;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

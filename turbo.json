@@ -1,0 +1,59 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env"],
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "NATS_URL",
+    "NATS_USER",
+    "NATS_PASSWORD",
+    "CORS_ALLOWED_ORIGINS",
+    "LOG_LEVEL",
+    "PORT",
+    "ADMIN_WEB_PORT",
+    "INVENTORY_SERVICE_PORT",
+    "PRODUCTION_SERVICE_PORT",
+    "FINANCE_REPORTING_SERVICE_PORT",
+    "IDENTITY_SERVICE_PORT",
+    "INVENTORY_DATABASE_URL",
+    "PRODUCTION_DATABASE_URL",
+    "FINANCE_REPORTING_DATABASE_URL",
+    "IDENTITY_DATABASE_URL",
+    "JWT_ISSUER",
+    "JWT_AUDIENCE",
+    "JWT_KEY_ID",
+    "JWT_PRIVATE_KEY_BASE64",
+    "JWT_PUBLIC_KEY_BASE64",
+    "AUTH_CSRF_SECRET",
+    "AUTH_COOKIE_SECURE",
+    "GATEWAY_URL"
+  ],
+  "tasks": {
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "src/generated/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "format": {
+      "cache": false
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

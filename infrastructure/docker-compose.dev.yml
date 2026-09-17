@@ -1,0 +1,11 @@
+services:
+  postgres:
+    ports: ['127.0.0.1:${POSTGRES_PORT:-5432}:5432']
+    networks: [private, edge]
+  nats:
+    ports: ['127.0.0.1:4222:4222', '127.0.0.1:8222:8222']
+    networks: [private, edge]
+  gateway:
+    volumes:
+      - ../.cache/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts: ['host.docker.internal:host-gateway']

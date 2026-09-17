@@ -1,0 +1,41 @@
+{
+  "name": "ambrosia",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "turbo run build",
+    "lint": "turbo run lint && eslint scripts tests",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test && vitest run tests",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "turbo run clean",
+    "infra:up": "node scripts/compose.mjs infra-up",
+    "infra:down": "node scripts/compose.mjs infra-down",
+    "infra:logs": "node scripts/compose.mjs logs",
+    "gateway:up": "node scripts/compose.mjs gateway-up",
+    "stack:up": "node scripts/compose.mjs stack-up",
+    "stack:down": "node scripts/compose.mjs stack-down",
+    "compose:config": "node scripts/compose.mjs config",
+    "test:stack": "node scripts/verify-stack.mjs",
+    "test:local": "node scripts/verify-local.mjs",
+    "test:ui": "node scripts/verify-ui.mjs",
+    "auth:keys:generate": "node scripts/generate-auth-keys.mjs",
+    "auth:bootstrap-owner": "node scripts/bootstrap-owner.mjs"
+  },
+  "devDependencies": {
+    "@ambrosia/eslint-config": "workspace:*",
+    "@types/node": "24.13.5",
+    "eslint": "9.39.5",
+    "playwright": "1.58.2",
+    "prettier": "3.9.7",
+    "turbo": "2.10.13",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

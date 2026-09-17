@@ -1,0 +1,44 @@
+{
+  "name": "@ambrosia/finance-reporting-service",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "dev": "pnpm build && node ../../scripts/service-dev.mjs",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "lint": "eslint .",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@nestjs/common": "11.2.5",
+    "@nestjs/core": "11.2.5",
+    "@nestjs/platform-express": "11.2.5",
+    "@nestjs/config": "4.0.4",
+    "@nestjs/swagger": "11.4.7",
+    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "pg": "8.23.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "helmet": "8.3.0",
+    "nats": "2.29.3",
+    "@ambrosia/contracts": "workspace:*",
+    "@ambrosia/shared-config": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "7.10.0",
+    "@types/pg": "8.23.1",
+    "@types/express": "5.0.6",
+    "@ambrosia/eslint-config": "workspace:*",
+    "@ambrosia/typescript-config": "workspace:*"
+  }
+}
