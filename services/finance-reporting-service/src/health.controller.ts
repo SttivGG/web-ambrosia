@@ -1,3 +1,4 @@
+import { Public, JwtVerifier } from '@ambrosia/nest-auth';
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -11,6 +12,7 @@ import { EventBusService } from './event-bus.service';
 class DependenciesDto {
   @ApiProperty() database!: boolean;
   @ApiProperty() nats!: boolean;
+  @ApiProperty() jwks!: boolean;
 }
 class HealthDto {
   @ApiProperty({ example: 'finance-reporting-service' }) service!: string;
@@ -25,7 +27,9 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventBusService,
+    private readonly verifier: JwtVerifier,
   ) {}
+  @Public()
   @Get('live')
   @ApiOkResponse({ type: HealthDto })
   live(): HealthV1 {
@@ -35,20 +39,23 @@ export class HealthController {
       timestamp: new Date().toISOString(),
     };
   }
+  @Public()
   @Get('ready')
   @ApiOkResponse({ type: HealthDto })
   @ApiServiceUnavailableResponse({ type: HealthDto })
   async ready(): Promise<HealthV1> {
-    const [database, nats] = await Promise.all([
+    const [database, nats, jwks] = await Promise.all([
       this.prisma.isReady(),
       this.events.isReady(),
+      this.verifier.isReady(),
     ]);
     const result: HealthV1 = {
       ...this.live(),
-      status: database && nats ? 'ok' : 'unavailable',
-      dependencies: { database, nats },
+      status: database && nats && jwks ? 'ok' : 'unavailable',
+      dependencies: { database, nats, jwks },
     };
-    if (!database || !nats) throw new ServiceUnavailableException(result);
+    if (!database || !nats || !jwks)
+      throw new ServiceUnavailableException(result);
     return result;
   }
 }

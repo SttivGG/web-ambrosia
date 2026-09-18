@@ -2,6 +2,12 @@ import type { HealthV1 } from '@ambrosia/contracts';
 export type Status = 'checking' | 'available' | 'unavailable';
 export const services = [
   {
+    id: 'auth',
+    name: 'Identidad',
+    service: 'identity-service',
+    description: 'Acceso y sesiones del equipo.',
+  },
+  {
     id: 'inventory',
     name: 'Inventario',
     service: 'inventory-service',

@@ -1,3 +1,4 @@
+import { AuthError, sendAuthError } from '@ambrosia/nest-auth';
 import {
   ArgumentsHost,
   Catch,
@@ -30,6 +31,10 @@ export function correlation(req: Request, res: Response, next: NextFunction) {
 export class SafeExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
+    if (error instanceof AuthError) {
+      sendAuthError(error, response);
+      return;
+    }
     const status = error instanceof HttpException ? error.getStatus() : 500;
     const body =
       error instanceof HttpException ? error.getResponse() : undefined;

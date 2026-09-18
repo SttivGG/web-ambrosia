@@ -141,3 +141,90 @@ Se verificó el índice antes del commit de cierre de las fases 0 y 1A: `.env`, 
 Se ejecutaron `pnpm lint`, `pnpm typecheck`, `pnpm test` y `pnpm build` mediante `npx --yes pnpm@10.34.5`; los cuatro terminaron con código 0. Turbo reutilizó la caché de las tareas de los paquetes; las 12 pruebas raíz se ejecutaron correctamente. Evidencias locales: `artifacts/git-checkpoint-{lint,typecheck,test,build}.log`. No se repitieron las verificaciones Docker ni de navegador en este cierre.
 
 El repositorio remoto ya contenía el commit inicial `1b7736a`, con un README mínimo; se conservó como base del historial. `git diff --cached --check` señaló líneas vacías al final de siete archivos preexistentes; se conservaron sin cambios en este punto de recuperación.
+
+## Validación de Fase 1B — 2026-09-17
+
+Se integró el login y la protección del panel con el Identity existente, sin modificar su código. El repositorio estaba limpio al inicio. La ejecución usó Windows, PowerShell, Node 24.14.0, pnpm 10.34.5 invocado mediante `npx --yes pnpm@10.34.5`, Docker Engine 29.8.0 y Chromium de Playwright 1.58.2. Docker estaba detenido y se inició para verificar el stack.
+
+| Comando                                      | Resultado real                                |
+| -------------------------------------------- | --------------------------------------------- |
+| `pnpm install --frozen-lockfile`             | Salida 0; lockfile vigente                    |
+| `pnpm format:check`                          | Salida 0                                      |
+| `pnpm lint`                                  | Salida 0; paquetes y scripts raíz             |
+| `pnpm typecheck`                             | Salida 0; nueve tareas                        |
+| `pnpm test`                                  | Salida 0; 118 pruebas únicas                  |
+| `pnpm build`                                 | Salida 0; siete tareas compilables            |
+| Compose base `config --quiet`                | Salida 0                                      |
+| Compose base + override dev `config --quiet` | Salida 0                                      |
+| `pnpm test:stack`                            | Salida 0; 13 grupos aprobados                 |
+| `node scripts/verify-ui.mjs`                 | Salida 0 independiente y dentro de test:stack |
+| `node scripts/verify-auth-boundary.mjs`      | Salida 0; tres comprobaciones de exposición   |
+| `git diff --check`                           | Salida 0                                      |
+
+El comando Compose completo usa `docker compose --env-file .env -f infrastructure/docker-compose.yml`; el override añade `-f infrastructure/docker-compose.dev.yml`. El archivo Compose está en infrastructure, por lo que ejecutar el comando sin esa ruta desde la raíz no selecciona el stack.
+
+Desglose de pruebas: 60 frontend (5 existentes y 55 nuevas), 29 Identity, 15 health de servicios de negocio y 14 raíz (12 existentes y 2 nuevas). Se conservan las 61 pruebas anteriores. La suite raíz ahora usa `vitest run --dir tests` para evitar contar dos veces los archivos nuevos bajo apps/admin-web/tests.
+
+Playwright comprobó mediante Nginx: redirección anónima sin contenido protegido; error genérico; navegación de teclado; mostrar/ocultar; login y cookies HttpOnly; datos públicos y no-store de /me; usuario/rol; recarga; redirección del login autenticado; returnTo interno/externo; cuatro readiness reales; fechas Colombia; controles de 44px; 375×812 y 812×375 sin scroll; menú móvil; caída y recuperación real de finanzas e Identity; conservación de cookies durante indisponibilidad; producción saludable con Identity detenido; JWT firmado vencido recuperado con un refresh; access ausente; refresh inválido sin bucle; logout; cambio confirmado de contraseña con revocación; ausencia de errores JavaScript, tráfico a puertos internos y datos en Web Storage. El fixture eliminó su usuario temporal y sesiones al finalizar.
+
+La prueba de stack preservó bootstrap, cookies, /me, rotación y reutilización, logout/logout-all, cambio de contraseña, auditoría y JWKS de 1A. También comprobó independencia entre servicios, liveness/readiness durante caídas de PostgreSQL/NATS, recuperación, doce conexiones cruzadas rechazadas y persistencia PostgreSQL/JetStream. Se eliminaron los marcadores y se restauraron los servicios.
+
+Estado final: admin-web, identity-service, inventory-service, production-service, finance-reporting-service, PostgreSQL, NATS y gateway en running/healthy. Solo gateway publica 8080 en IPv4/IPv6. Los puertos 3000–3004, 5432, 4222, 6222 y 8222 no se publican. Los jobs identity-db-provision e identity-migrate terminaron con código 0.
+
+La revisión de exposición analiza archivos rastreados y nuevos no ignorados, bundle .next/static y logs Docker, sin imprimir valores sensibles. No detectó JWT, claves privadas, cookies completas, contraseñas ni tokens CSRF en logs; las variables y URLs privadas no aparecen en el bundle. .env, secrets y artifacts siguen ignorados. Las credenciales de .env.example son ejemplos locales.
+
+Durante la validación se corrigieron una actualización síncrona de estado señalada por lint, referencias a Web Storage en el contexto de navegador del script y la sustitución incompleta de Identity en el gateway local. El primer intento de navegador no encontró Chromium compatible; después de instalarlo, la prueba pasó. La revisión inicial de secretos confundía .env.example con .env; se corrigió el patrón y se repitió satisfactoriamente. Estos intentos fallidos no se contabilizan como aprobados.
+
+El modo local quedó verificado mediante configuración Compose y regresión del generador; no se levantaron simultáneamente aplicaciones del host y contenedores de aplicación. Los controles de aceptación corresponden al stack real por Nginx.
+
+Evidencias locales ignoradas: artifacts/phase1b-{lint,typecheck,test,build}.log, artifacts/ui-verification.json, artifacts/stack-verification.json, artifacts/identity-verification.json, artifacts/auth-boundary-verification.json, artifacts/admin-desktop.png y artifacts/admin-mobile.png. El informe de entrega incluye los archivos y decisiones en delivery.md.
+
+Git conserva cambios locales sin commit ni push. No se modificaron servicios de negocio, seguridad de Identity, permisos PostgreSQL ni NATS. No quedan pruebas de aceptación pendientes.
+
+**FASE 1B COMPLETADA**.
+
+En la comprobación de cierre, el motor Docker dejó de responder después de haber pasado las pruebas. Se inició nuevamente y se ejecutó `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --no-build`. La revisión posterior confirmó otra vez los ocho contenedores saludables, solo 8080 publicado, cero usuarios temporales y la comprobación de exposición aprobada. No se reconstruyeron imágenes ni se modificaron datos de negocio para esta recuperación.
+
+## Validación de Fase 1C — 2026-09-17
+
+Se conservaron los cambios de Fase 1B presentes al inicio. Se implementó la autenticación distribuida en los tres servicios de negocio y se protegió Swagger en los cuatro. No se realizaron commits ni push, ni se eliminaron volúmenes o usuarios existentes.
+
+Los comandos pnpm se ejecutaron mediante `npx --yes pnpm@10.34.5`.
+
+| Comando                                | Resultado real                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| install --frozen-lockfile              | Salida 0; lockfile final vigente                                           |
+| format:check                           | Salida 0; formato final verificado                                         |
+| lint                                   | Salida 0                                                                   |
+| typecheck                              | Salida 0                                                                   |
+| test                                   | Salida 0; 175 pruebas únicas                                               |
+| build                                  | Salida 0; ocho tareas compilables                                          |
+| test:local                             | Salida 0; cuatro grupos HTTP con dependencias deliberadamente inaccesibles |
+| test:stack                             | Salida 0; 14 grupos, reconstrucción y restauración incluidas               |
+| Compose base y base+dev config --quiet | Salida 0                                                                   |
+| nginx -t y nginx -s reload             | Salida 0                                                                   |
+| node scripts/verify-auth-boundary.mjs  | Salida 0                                                                   |
+| git diff --check                       | Salida 0                                                                   |
+
+Se conservan las 118 pruebas anteriores y se agregan 57: 54 de nest-auth y tres de readiness con JWKS. Total por área: 60 frontend, 29 Identity, 18 health de negocio, 54 nest-auth y 14 raíz.
+
+Las pruebas nuevas cubren extracción cookie/Bearer, credenciales idénticas y ambiguas, rechazo de query/body, firma, exp/nbf, issuer/audience, algoritmo, kid, claims y permisos inválidos, refresh opaco, caché, rotación, claves retiradas, single-flight, timeout, arranque sin JWKS y recuperación. Una aplicación Nest de prueba escucha en loopback y verifica HTTP real, guards globales, rutas públicas, denegación sin metadatos, permisos acumulativos, contexto inmutable, CSRF, origen/Referer, errores genéricos y correlación. Sus claves y JWKS simulados solo acreditan comportamiento del paquete; no se presentan como infraestructura real.
+
+Playwright se ejecutó mediante Nginx dentro de test:stack en dos suites:
+
+- verify-distributed-auth.mjs: 11 grupos. Login y dashboard con OWNER, ADMIN, OPERATOR y VIEWER; UI/OpenAPI/assets según matriz; cookie y Bearer; ejecución de health con Try it out; JWT firmado expirado, issuer/audience incorrectos, algoritmo inesperado, kid desconocido, token manipulado y refresh usados como access rechazados; CSRF inválido; autenticación de negocio mientras Identity está detenido; logout sin acceso posterior; cero errores JavaScript, tráfico a puertos internos o tokens en URL/Web Storage. Los usuarios se eliminaron al finalizar.
+- verify-ui.mjs: 12 grupos. Conserva login, recarga, returnTo, responsive, recuperación single-flight, caídas reales, logout y cambio de contraseña con revocación. El fixture puede convivir con un OWNER existente sin modificarlo.
+
+La prueba de stack verificó ocho contenedores saludables, health anónimo 200, Swagger anónimo 401, independencia de aplicaciones, readiness 503 durante caídas de PostgreSQL/NATS y recuperación posterior. Confirmó doce accesos PostgreSQL cruzados rechazados y persistencia de marcadores PostgreSQL/JetStream después de reiniciar; eliminó los marcadores y restauró los servicios.
+
+La inspección de exposición revisó archivos rastreados y nuevos no ignorados, bundle de navegador y logs Docker. No encontró JWT, claves privadas, valores de cookies, contraseñas ni CSRF. Las claves y secretos locales permanecen ignorados. Ningún servicio de negocio recibe material privado de Identity.
+
+Durante el trabajo se resolvieron estos fallos antes del cierre: el sandbox no iniciaba y las herramientas de terminal se ejecutaron con permisos revisados; Docker Desktop estaba pausado y se reinició sin eliminar volúmenes; Vitest necesitó la transformación de decoradores TypeScript; faltaba el módulo bootstrap-errors importado por cambios previos; lint detectó un import Buffer omitido; una prueba local esperaba el mensaje antiguo de configuración; Prettier señaló dos archivos. Una revisión automática también interrumpió un comando por cuota de uso, que no se ejecutó y se retomó después. Los intentos fallidos no se contabilizan como aprobados.
+
+Evidencias locales ignoradas: artifacts/phase1c-{install,format,lint,typecheck,test,build,local,stack,boundary}.log, artifacts/distributed-auth-verification.json, artifacts/ui-verification.json, artifacts/stack-verification.json y artifacts/auth-boundary-verification.json.
+
+El login se verificó rellenando y enviando el formulario real en Chromium automatizado; no se afirma una sesión manual adicional realizada por una persona. Los límites de revocación hasta exp, caché en memoria y CSRF de negocio basado en double-submit/origen están documentados en ADR-006.
+
+Estado final comprobado: ocho contenedores running/healthy; solamente gateway publica 8080 en IPv4/IPv6. La consulta mediante Prisma propio de Identity devolvió cero usuarios temporales de Fases 1A/1B/1C. Stack restaurado y marcadores eliminados. Los cambios permanecen en el árbol de trabajo junto con los cambios previos, sin commits ni push.
+
+**FASE 1C COMPLETADA**. La Fase 1 queda completada en el roadmap; Fase 2 no se inició.

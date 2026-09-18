@@ -1,3 +1,4 @@
+import { NestAuthModule, authOptions } from '@ambrosia/nest-auth';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateServiceEnv } from '@ambrosia/shared-config';
@@ -6,6 +7,7 @@ import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
 @Module({
   imports: [
+    NestAuthModule.register(authOptions(process.env)),
     ConfigModule.forRoot({
       isGlobal: true,
       ignoreEnvFile: true,

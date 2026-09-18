@@ -1,3 +1,5 @@
+import { swaggerOptions } from '@ambrosia/nest-auth';
+import { JwtVerifier, swaggerProtection } from '@ambrosia/nest-auth';
 import 'reflect-metadata';
 import { ConsoleLogger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -32,19 +34,32 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new SafeExceptionFilter());
   app.enableShutdownHooks();
+  const verifier = app.get(JwtVerifier);
+  app.use(swaggerProtection(verifier));
   const document = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
       .setTitle('inventory-service')
       .setVersion('1.0.0')
+      .addCookieAuth(
+        'ambrosia_access',
+        { type: 'apiKey', in: 'cookie' },
+        'cookieAuth',
+      )
+      .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
         'Fundación técnica de Ambrosia. Liveness del proceso y readiness de PostgreSQL y NATS JetStream.',
       )
       .build(),
   );
+  document.security = [{ cookieAuth: [] }, { bearerAuth: [] }];
+  for (const path of ['/api/v1/health/live', '/api/v1/health/ready']) {
+    const operation = document.paths[path]?.get;
+    if (operation) operation.security = [];
+  }
   SwaggerModule.setup('docs', app, document, {
-    swaggerOptions: { url: '../docs-json' },
+    swaggerOptions,
   });
   await app.listen(config.getOrThrow<number>('PORT'), '0.0.0.0');
 }

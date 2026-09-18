@@ -12,6 +12,7 @@ function start(name, port) {
       PORT: String(port),
       DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/unavailable',
       NATS_URL: 'nats://127.0.0.1:1',
+      AUTH_JWKS_URL: 'http://127.0.0.1:1/.well-known/jwks.json',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -59,10 +60,10 @@ try {
     assert.deepEqual((await ready.json()).dependencies, {
       database: false,
       nats: false,
+      jwks: false,
     });
-    await request(port, '/docs/', 200);
-    const docs = await (await request(port, '/docs-json', 200)).json();
-    assert.ok(docs.paths['/api/v1/health/ready']);
+    await request(port, '/docs/', 401);
+    await request(port, '/docs-json', 401);
     const bad = await request(port, '/missing', 404, {
       'X-Request-ID': 'unsafe value',
     });
@@ -81,7 +82,7 @@ try {
     assert.equal(denied.headers.get('access-control-allow-origin'), null);
   }
   pass(
-    'Tres procesos: liveness 200, readiness 503 con dependencias inaccesibles, Swagger 200, correlación, CORS y errores seguros',
+    'Tres procesos: liveness 200, readiness 503 con dependencias inaccesibles, Swagger 401, correlación, CORS y errores seguros',
   );
   finance.child.kill();
   await request(13002, '/api/v1/health/live', 200);
@@ -119,7 +120,7 @@ try {
     });
   });
   assert.notEqual(exit, 0);
-  assert.match(output, /Configuración inválida/);
+  assert.match(output, /Configuración (?:de autenticación )?inválida/);
   pass('Configuración incompleta rechazada al arrancar');
 } catch (error) {
   results.push({

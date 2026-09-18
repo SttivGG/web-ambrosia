@@ -92,3 +92,246 @@ h1 {
     transition: none !important;
   }
 }
+
+/* Session and administrative layout */
+input:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 3px;
+}
+button,
+summary,
+nav a {
+  min-height: 44px;
+  min-width: 44px;
+}
+button,
+summary {
+  cursor: pointer;
+}
+summary {
+  padding: 12px;
+  font-weight: 600;
+}
+button:disabled {
+  cursor: wait;
+}
+input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid #78776e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+}
+.field {
+  margin-top: 24px;
+}
+.field label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.password-field {
+  display: flex;
+  gap: 8px;
+}
+.password-field button {
+  padding: 8px;
+  color: var(--green);
+}
+.muted {
+  color: var(--muted);
+}
+.form-error {
+  color: #97382d;
+  margin: 16px 0;
+}
+.submit {
+  width: 100%;
+}
+.login-layout {
+  min-height: 100dvh;
+  display: grid;
+  align-items: center;
+  max-width: 1100px;
+  margin: auto;
+  padding: 32px 24px;
+  gap: 48px;
+}
+.login-brand h2 {
+  font-family: Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.15;
+  margin: 24px 0;
+}
+.login-brand .eyebrow {
+  margin-top: 36px;
+}
+.auth-card {
+  width: min(100%, 480px);
+  padding: 32px;
+  margin: 32px auto;
+  background: white;
+  border: 1px solid #deded4;
+  border-radius: 16px;
+}
+h1 {
+  font-size: 2.25rem;
+  margin-bottom: 16px;
+}
+.admin-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #deded4;
+  padding: 20px 32px;
+  background: white;
+}
+.user-info {
+  display: grid;
+  margin-left: auto;
+  font-size: 0.875rem;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.user-info span {
+  color: var(--muted);
+}
+.user-menu {
+  position: relative;
+}
+.account-panel {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid #deded4;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px #262c2620;
+  max-height: 75dvh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.account-panel form {
+  border-top: 1px solid #deded4;
+  padding-top: 16px;
+}
+.confirm {
+  display: flex;
+  gap: 12px;
+  margin: 24px 0;
+  align-items: center;
+  min-height: 44px;
+}
+.confirm input {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.admin-grid {
+  display: grid;
+}
+.sidebar {
+  padding: 24px;
+  border-bottom: 1px solid #deded4;
+}
+.sidebar nav {
+  display: none;
+}
+.sidebar nav.nav-open {
+  display: grid;
+}
+.sidebar nav a,
+.nav-coming {
+  padding: 14px 16px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sidebar nav a {
+  background: #e9f2eb;
+  color: #245339;
+  font-weight: 600;
+}
+.nav-coming {
+  color: #57534e;
+}
+.nav-coming small {
+  font-size: 0.65rem;
+}
+.sidebar-note {
+  display: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.mobile-menu {
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+}
+.dashboard-main {
+  padding: 32px 24px;
+  min-width: 0;
+}
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -100px;
+  padding: 12px;
+  background: white;
+  z-index: 20;
+}
+.skip-link:focus {
+  top: 16px;
+}
+@media (min-width: 900px) {
+  .login-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-grid {
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: calc(100dvh - 100px);
+  }
+  .sidebar {
+    border-right: 1px solid #deded4;
+    border-bottom: 0;
+  }
+  .sidebar nav {
+    display: grid;
+    gap: 8px;
+  }
+  .sidebar-note {
+    display: block;
+    margin: 48px 16px;
+  }
+  .mobile-menu {
+    display: none;
+  }
+  .dashboard-main {
+    padding: 48px;
+    max-width: 1400px;
+  }
+}
+@media (max-width: 480px) {
+  .admin-header {
+    padding: 16px;
+    gap: 12px;
+  }
+  .user-info {
+    width: 100%;
+    order: 3;
+  }
+  .user-menu {
+    margin-left: auto;
+  }
+  .auth-card {
+    padding: 24px;
+  }
+}

@@ -83,10 +83,10 @@ try {
     assert.deepEqual((await response.json()).dependencies, {
       database: true,
       nats: true,
+      ...(route === 'auth' ? {} : { jwks: true }),
     });
-    await http('/api/' + route + '/docs/', 200);
-    const docs = await (await http('/api/' + route + '/docs-json', 200)).json();
-    assert.ok(docs.paths['/api/v1/health/ready']);
+    await http('/api/' + route + '/docs/', 401);
+    await http('/api/' + route + '/docs-json', 401);
   }
   await http('/', 200);
   const expectedServices = [
@@ -153,6 +153,35 @@ try {
     );
   }
   pass('Flujos de identidad, sesiones, CSRF, JWT, bootstrap y auditoría');
+  const distributed = spawnSync(
+    process.execPath,
+    ['scripts/verify-distributed-auth.mjs'],
+    { encoding: 'utf8' },
+  );
+  if (distributed.status !== 0)
+    throw new Error(
+      'Falló autenticación distribuida; revisar artifacts/distributed-auth-verification.json',
+    );
+  pass(
+    'JWT/JWKS, cuatro roles, Swagger, caída Identity y Playwright por Nginx',
+  );
+  const protectedResponse = await fetch(base + '/dashboard', {
+    redirect: 'manual',
+  });
+  assert.equal(protectedResponse.status, 307);
+  assert.ok(protectedResponse.headers.get('location')?.includes('/login'));
+  const uiVerification = spawnSync(
+    process.execPath,
+    ['scripts/verify-ui.mjs'],
+    { encoding: 'utf8' },
+  );
+  if (uiVerification.status !== 0)
+    throw new Error(
+      'Falló Playwright contra Nginx; revisar artifacts/ui-verification.json',
+    );
+  pass(
+    'Panel protegido y Playwright real: login, recuperación, logout, contraseña y accesibilidad',
+  );
   compose('stop', 'finance-reporting-service');
   await http('/api/finance/health/live', 503);
   await http('/api/production/health/ready', 200);
@@ -286,6 +315,7 @@ try {
     );
   } catch {
     console.error('Revisar restauración/limpieza del stack.');
+    process.exitCode = 1;
   }
   mkdirSync('artifacts', { recursive: true });
   writeFileSync(

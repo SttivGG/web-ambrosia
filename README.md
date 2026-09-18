@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. El panel de login, los guardias de los servicios de negocio y la lógica de inventario, producción, finanzas o comercio aún no forman parte del sistema.
+Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La lógica de inventario, producción, finanzas y comercio queda pendiente.
 
 ## Arquitectura
 
@@ -12,6 +12,7 @@ services/inventory-service/      NestJS + Prisma propios
 services/production-service/     NestJS + Prisma propios
 services/finance-reporting-service/
 services/identity-service/       NestJS, Prisma, Argon2id, JWT RS256 y sesiones
+packages/nest-auth/             verificador JWKS, guards y protección Swagger
 packages/contracts/             contratos de transporte versionados
 packages/shared-config/         validación Zod sin dominio
 packages/eslint-config/          configuración ESLint
@@ -87,7 +88,7 @@ El Compose base publica únicamente Nginx en 8080. PostgreSQL, NATS y aplicacion
 | NATS / monitor            | 4222 / 8222 (solo loopback en desarrollo) | JetStream persistente    |
 | Nginx                     | 8080                                      | —                        |
 
-Para un despliegue externo, configurar TLS en el borde, DNS, secretos reales y backups antes de abrir el acceso. Producción exige `AUTH_COOKIE_SECURE=true`. El panel todavía no consume identidad ni está protegido; esa integración corresponde a la Fase 1C.
+Para un despliegue externo, configurar TLS en el borde, DNS, secretos reales y backups antes de abrir el acceso. Producción exige `AUTH_COOKIE_SECURE=true`. El panel usa /login y /dashboard protegido. La Fase 1C incorpora guards JWT/RBAC y protección de Swagger; ver ADR-006.
 
 ## Health y Swagger
 
@@ -100,7 +101,7 @@ En el gateway (`http://localhost:8080`):
 | Finanzas   | /api/finance/health/live    | /api/finance/health/ready    | /api/finance/docs/    |
 | Identidad  | /api/auth/health/live       | /api/auth/health/ready       | /api/auth/docs/       |
 
-Directamente en el puerto de cada servicio: `/api/v1/health/live`, `/api/v1/health/ready`, `/docs/` y `/docs-json`. Liveness solo comprueba el proceso. Readiness ejecuta `SELECT 1` mediante el Prisma propio y consulta la cuenta JetStream con timeout. Dependencias caídas producen 503 sin exponer errores internos. Nginx genera/preserva `X-Request-ID`; cada servicio lo incluye en respuestas y logs JSON. La interfaz muestra los resultados reales y la última comprobación en `America/Bogota`; el transporte usa UTC.
+Directamente en el puerto de cada servicio: `/api/v1/health/live`, `/api/v1/health/ready`, `/docs/` y `/docs-json`. Liveness solo comprueba el proceso. Readiness ejecuta `SELECT 1` mediante el Prisma propio y consulta la cuenta JetStream con timeout. En los servicios de negocio también exige una clave JWKS vigente; la caché dura cinco minutos por defecto. Dependencias caídas producen 503 sin exponer errores internos. Nginx genera/preserva `X-Request-ID`; cada servicio lo incluye en respuestas y logs JSON. La interfaz muestra los resultados reales y la última comprobación en `America/Bogota`; el transporte usa UTC.
 
 ## Identidad y sesiones
 
@@ -142,7 +143,7 @@ docker compose --env-file .env -f infrastructure/docker-compose.yml config --qui
 pnpm test:stack
 ```
 
-Pruebas adicionales después de `pnpm build`: `pnpm test:local` verifica HTTP real con dependencias deliberadamente inaccesibles; `pnpm exec playwright install chromium` seguido de `pnpm test:ui` verifica el panel en navegador. Playwright se utiliza solo en desarrollo. Si ya existe Chromium, puede indicarse `PLAYWRIGHT_EXECUTABLE_PATH` (Bash: `export PLAYWRIGHT_EXECUTABLE_PATH=/ruta/chrome`; PowerShell: `$env:PLAYWRIGHT_EXECUTABLE_PATH='C:/ruta/chrome.exe'`). Las respuestas saludables de la prueba UI son simuladas y no reemplazan `test:stack`.
+Pruebas adicionales después de `pnpm build`: `pnpm test:local` verifica HTTP real con dependencias deliberadamente inaccesibles; `pnpm exec playwright install chromium` seguido de `pnpm test:ui` verifica el panel en navegador. Playwright se utiliza solo en desarrollo. Si ya existe Chromium, puede indicarse `PLAYWRIGHT_EXECUTABLE_PATH` (Bash: `export PLAYWRIGHT_EXECUTABLE_PATH=/ruta/chrome`; PowerShell: `$env:PLAYWRIGHT_EXECUTABLE_PATH='C:/ruta/chrome.exe'`). La prueba UI usa el stack real por Nginx y crea usuarios temporales aislados en Identity, incluso si ya existe un OWNER. Los elimina al finalizar. No ejecutarla contra producción ni al mismo tiempo que test:stack.
 
 `test:stack` necesita Docker y el workspace local: construye/levanta el stack, comprueba ocho contenedores, endpoints, Swagger y los flujos reales de identidad; detiene finanzas, producción e identidad por separado; simula caídas de PostgreSQL/NATS; comprueba recuperación; rechaza doce conexiones cruzadas de las cuatro cuentas y verifica persistencia con marcadores temporales. Restaura los servicios y limpia tanto marcadores como el OWNER temporal al finalizar. Escribe resultados reales en `artifacts/stack-verification.json` y `artifacts/identity-verification.json`. No ejecutar contra producción. No elimina volúmenes.
 
@@ -172,3 +173,19 @@ En PowerShell reemplazar `curl` por `curl.exe`. Los resultados de esta implement
 - La skill UI disponible contenía referencias a scripts inexistentes. Se aplicaron directamente sus reglas de contraste, foco, estados con texto, tamaño táctil y responsive.
 
 Ver [arquitectura](docs/architecture/system-overview.md), [despliegue](docs/architecture/deployment.md), [ADR de identidad](docs/adr/ADR-005-identity-and-session-security.md) y [roadmap](docs/roadmap.md).
+
+## Panel administrativo (Fase 1B)
+
+Abrir http://localhost:8080/login después de crear el propietario con `pnpm auth:bootstrap-owner`. El login usa CSRF y cookies HttpOnly. El panel muestra usuario, rol, sesión y cuatro servicios reales. El menú Mi cuenta permite cerrar sesión y cambiar contraseña con confirmación de revocación.
+
+`IDENTITY_INTERNAL_URL` es exclusiva del servidor Next: `http://127.0.0.1:3004` localmente y `http://identity-service:3004` en Compose. El navegador solo utiliza `/api/auth/*`. Si se modifica el puerto de Identity y existe una URL explícita, actualizar ambos. `pnpm dev` deriva la URL del puerto cuando no se define.
+
+El refresh conserva su path `/api/auth`. El binding CSRF permite detectar una posible recuperación cuando el access ya expiró, pero solamente `/me` autoriza mostrar el panel. Identity no disponible muestra una pantalla de reintento. Consulte [la entrega](docs/delivery.md) para reintentos, límites y archivos modificados.
+
+## Protección de servicios (Fase 1C)
+
+Swagger exige OWNER en Identity y OWNER/ADMIN en negocio. OPERATOR y VIEWER reciben 403; anónimos y tokens inválidos reciben 401. También se protegen OpenAPI y assets. Health sigue público. Cada servicio verifica JWT RS256 localmente con JWKS, sin consultar /me por petición.
+
+Las rutas privadas requieren @RequirePermissions; una omisión se rechaza. Cookies y Bearer son alternativas; credenciales distintas se rechazan. Las mutaciones con cookie requieren CSRF y origen autorizado. Ver [ADR-006](docs/adr/ADR-006-distributed-authentication-rbac.md), [entrega](docs/delivery.md) y [validación](docs/validation.md).
+
+La verificación específica puede repetirse con node scripts/verify-distributed-auth.mjs después de levantar el stack. Está incluida en test:stack y ejecuta Playwright real con los cuatro roles. No ejecutar en producción ni simultáneamente con las demás pruebas del stack.

@@ -25,10 +25,21 @@ export const userClaimsV1Schema = z.object({
   permissions: z.array(z.enum(PERMISSIONS_V1)),
 });
 export type UserClaimsV1 = z.infer<typeof userClaimsV1Schema>;
-export interface PublicUserV1 {
-  id: string;
+export const publicUserV1Schema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  displayName: z.string().min(1),
+  role: z.enum(ROLES_V1),
+  permissions: z.array(z.enum(PERMISSIONS_V1)),
+});
+export type PublicUserV1 = z.infer<typeof publicUserV1Schema>;
+export const csrfV1Schema = z.object({ csrfToken: z.string().min(1).max(128) });
+export const authSuccessV1Schema = z.object({ ok: z.literal(true) });
+export interface LoginV1 {
   email: string;
-  displayName: string;
-  role: RoleV1;
-  permissions: PermissionV1[];
+  password: string;
+}
+export interface ChangePasswordV1 {
+  currentPassword: string;
+  newPassword: string;
 }

@@ -63,3 +63,19 @@ Versiones fijadas en manifests y pnpm-lock.yaml. No se migraron dependencias a o
 Los paquetes @types corresponden a las bibliotecas utilizadas; @types/node se fija a la rama 24. Los paquetes internos contienen contratos o configuración, no lógica del dominio.
 
 El registro npm advierte que `nats@2.29.3` y `eslint@9.39.5` están deprecados. Las versiones elegidas son releases estables y pasaron compilación/pruebas; se conserva el lockfile solicitado. Revisar deliberadamente cliente NATS modular y ESLint 10 en una tarea de mantenimiento, sin cambios mayores automáticos. Los scripts de instalación de @scarf/scarf y unrs-resolver no fueron autorizados; las validaciones funcionaron sin ellos.
+
+## Adiciones de Fase 1B
+
+- server-only 0.0.1: impide importar el lector de sesión de servidor desde componentes cliente.
+- jsdom 26.1.0: entorno DOM de Vitest, solo desarrollo.
+- @ambrosia/contracts pasa a dependencia de ejecución de admin-web para validar las respuestas reales con Zod.
+
+No se actualizaron versiones mayores existentes. El comando raíz de Vitest limita su directorio a tests para evitar ejecutar dos veces las nuevas pruebas del frontend.
+
+## Adiciones de Fase 1C
+
+@ambrosia/nest-auth es un paquete interno de infraestructura NestJS: usa las versiones existentes de Nest 11.2.5, jose 6.2.12, Zod 4.6.5, reflect-metadata y RxJS. No se incorporan librerías externas de ejecución nuevas ni se actualizan versiones mayores. Los cuatro servicios lo empaquetan mediante pnpm deploy.
+
+Su configuración de Vitest transforma decoradores con TypeScript, igual que la compilación Nest de producción, para probar una aplicación HTTP real sin incluir controladores de prueba en dist. El lockfile conserva versiones existentes y agrega los enlaces del workspace.
+
+ADR-006 autoriza compartir esta infraestructura de autenticación; continúa prohibido compartir Prisma, persistencia o dominio entre servicios.

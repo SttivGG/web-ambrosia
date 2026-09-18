@@ -1,3 +1,9 @@
+import { swaggerOptions } from '@ambrosia/nest-auth';
+import {
+  JwtVerifier,
+  authOptions,
+  swaggerProtection,
+} from '@ambrosia/nest-auth';
 import 'reflect-metadata';
 import {
   ConsoleLogger,
@@ -49,11 +55,28 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new SafeExceptionFilter());
   app.enableShutdownHooks();
+  const verifier = new JwtVerifier(
+    authOptions({
+      ...process.env,
+      AUTH_JWKS_URL:
+        process.env.AUTH_JWKS_URL ??
+        'http://127.0.0.1:' +
+          config.getOrThrow<number>('PORT') +
+          '/.well-known/jwks.json',
+    }),
+  );
+  app.use(swaggerProtection(verifier, true));
   const document = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
       .setTitle('identity-service')
       .setVersion('1.0.0')
+      .addCookieAuth(
+        'ambrosia_access',
+        { type: 'apiKey', in: 'cookie' },
+        'cookieAuth',
+      )
+      .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
         'Identidad y sesiones. POST requiere cookie CSRF, binding, X-CSRF-Token y Origin/Referer autorizado. Cookies seguras en producción.',
@@ -70,8 +93,14 @@ async function bootstrap() {
       )
       .build(),
   );
+  // Session endpoints keep their existing cookie-only contracts; Swagger access accepts either mechanism.
+  document.security = [];
+  for (const path of ['/api/v1/health/live', '/api/v1/health/ready']) {
+    const operation = document.paths[path]?.get;
+    if (operation) operation.security = [];
+  }
   SwaggerModule.setup('docs', app, document, {
-    swaggerOptions: { url: '../docs-json', persistAuthorization: false },
+    swaggerOptions,
   });
   await app.listen(config.getOrThrow<number>('PORT'), '0.0.0.0');
 }

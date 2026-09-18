@@ -8,7 +8,7 @@ Ambrosia necesita identidades internas sin acoplar contraseñas, sesiones ni la 
 
 ## Decisión
 
-Crear `identity-service` con base, usuario PostgreSQL, cliente Prisma y ciclo de despliegue propios. Es el propietario del mapa rol-permisos y emite access tokens de 15 minutos firmados con RS256. Publica solamente la clave pública mediante JWKS; en Fase 1B cada servicio validará firma, emisor, audiencia y claims de forma local.
+Crear `identity-service` con base, usuario PostgreSQL, cliente Prisma y ciclo de despliegue propios. Es el propietario del mapa rol-permisos y emite access tokens de 15 minutos firmados con RS256. Publica solamente la clave pública mediante JWKS; en Fase 1C cada servicio validará firma, emisor, audiencia y claims de forma local.
 
 Las contraseñas usan Argon2id. El refresh token es opaco, aleatorio y solo se persiste su hash SHA-256. Cada renovación crea un token nuevo dentro de la misma familia, invalida el anterior y permite revocar la familia completa ante reutilización. Las cookies de access y refresh son HttpOnly y SameSite=Lax; producción exige Secure. Un token CSRF legible, enlazado criptográficamente a otra cookie HttpOnly, más la validación de Origin o Referer protege operaciones mutables. No se almacenan tokens en Web Storage.
 
@@ -31,4 +31,8 @@ El rate limit por IP es local al proceso y solo sirve para una instancia de desa
 
 ## Trabajo futuro
 
-La Fase 1B agregará validación JWKS independiente, guardias de claims y RBAC en inventario, producción y finanzas, sin compartir Prisma ni repositorios. La Fase 1C agregará el formulario del panel, renovación controlada, cierre de sesión desde la interfaz y protección del panel y Swagger. Gestión de usuarios, recuperación, MFA, OAuth, correo y rotación operativa automatizada permanecen fuera de 1A.
+La Fase 1C agregará validación JWKS independiente, guardias de claims y RBAC en inventario, producción y finanzas, además de protección de Swagger. Gestión de usuarios, recuperación de contraseña, MFA, OAuth, correo y rotación operativa automatizada permanecen fuera del alcance actual.
+
+## Integración del panel, Fase 1B (2026-09-17)
+
+Se reasigna el login y protección del panel a 1B según el alcance aprobado. Next consulta /me desde el servidor con no-store y timeout, sin recibir la cookie refresh, cuyo Path sigue siendo /api/auth. El binding CSRF es un indicio para mostrar recuperación neutral; no acredita autenticación. El navegador renueva por Nginx, vuelve a consultar /me y refresca la navegación. Un intento por navegación evita ciclos y solo GET/HEAD admiten repetición automática tras refresh. Cookies, expiraciones, firma, origen y controles de Identity se conservan.

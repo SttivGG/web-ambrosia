@@ -1,3 +1,4 @@
+import { ownerBootstrapMessage } from './users/bootstrap-errors';
 import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
 import { createInterface } from 'node:readline/promises';
@@ -55,6 +56,9 @@ async function run() {
     email = await rl.question('Correo: ');
     name = await rl.question('Nombre: ');
     rl.close();
+    process.stdout.write(
+      'La contraseña debe tener 12–128 caracteres, una letra y un número, y ser distinta del correo.\n',
+    );
     password = await hiddenPassword();
   }
   const db = new PrismaService(
@@ -70,9 +74,9 @@ async function run() {
     await db.$disconnect();
   }
 }
-void run().catch(() => {
+void run().catch((error: unknown) => {
   process.stderr.write(
-    'No se creó el propietario: verificar datos, conexión o OWNER existente.\n',
+    'No se creó el propietario: ' + ownerBootstrapMessage(error) + '\n',
   );
   process.exitCode = 1;
 });

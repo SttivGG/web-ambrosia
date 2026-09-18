@@ -1,3 +1,4 @@
+import { fixtureUser } from './auth-test-fixture.mjs';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
@@ -16,7 +17,7 @@ const base =
 const origin = (
   process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:8080'
 ).split(',')[0];
-const email = 'fase1a.owner@ambrosia.test';
+const email = 'fase1a.' + randomBytes(10).toString('hex') + '@ambrosia.test';
 const password = 'Inicial ' + randomBytes(15).toString('base64url') + ' 2026';
 const nextPassword =
   'Renovada ' + randomBytes(15).toString('base64url') + ' 2027';
@@ -138,23 +139,30 @@ try {
   record('Migración versionada de identidad aplicada');
   const cleanupSql = `DELETE FROM "AuthAuditLog" WHERE "correlationId"='identity-verification' OR "userId" IN (SELECT id FROM "User" WHERE email='${email}'); DELETE FROM "RefreshSession" WHERE "userId" IN (SELECT id FROM "User" WHERE email='${email}'); DELETE FROM "User" WHERE email='${email}';`;
   assertOk(sql(cleanupSql), 'limpieza inicial acotada');
-  const bootstrap = compose(
-    'exec',
-    '-T',
-    '-e',
-    'NODE_ENV=test',
-    '-e',
-    'AUTH_TEST_OWNER_EMAIL=' + email,
-    '-e',
-    'AUTH_TEST_OWNER_NAME=Propietaria Fase 1A',
-    '-e',
-    'AUTH_TEST_OWNER_PASSWORD=' + password,
-    'identity-service',
-    'node',
-    'dist/bootstrap-owner.js',
-    '--test',
-  );
-  assertOk(bootstrap, 'bootstrap');
+  const hasOwner =
+    Number(
+      sql(`SELECT COUNT(*) FROM "User" WHERE role='OWNER';`).stdout.trim(),
+    ) > 0;
+  const bootstrap = hasOwner
+    ? null
+    : compose(
+        'exec',
+        '-T',
+        '-e',
+        'NODE_ENV=test',
+        '-e',
+        'AUTH_TEST_OWNER_EMAIL=' + email,
+        '-e',
+        'AUTH_TEST_OWNER_NAME=Propietaria Fase 1A',
+        '-e',
+        'AUTH_TEST_OWNER_PASSWORD=' + password,
+        'identity-service',
+        'node',
+        'dist/bootstrap-owner.js',
+        '--test',
+      );
+  if (hasOwner) fixtureUser('create', email, password);
+  else assertOk(bootstrap, 'bootstrap');
   const duplicate = compose(
     'exec',
     '-T',
@@ -172,7 +180,11 @@ try {
     '--test',
   );
   assert.notEqual(duplicate.status, 0);
-  record('Bootstrap crea un OWNER, audita y rechaza el segundo');
+  record(
+    hasOwner
+      ? 'OWNER existente conservado, fixture aislado y bootstrap adicional rechazado'
+      : 'Bootstrap crea un OWNER, audita y rechaza el segundo',
+  );
   const missing = new Jar(),
     wrong = new Jar();
   const a = await login(missing, password, 'no-existe@ambrosia.test'),

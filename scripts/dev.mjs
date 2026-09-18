@@ -11,6 +11,10 @@ try {
 } catch {
   throw new Error('Ejecutar pnpm auth:keys:generate.');
 }
+process.env.IDENTITY_INTERNAL_URL ??=
+  'http://127.0.0.1:' + (process.env.IDENTITY_SERVICE_PORT || '3004');
+process.env.AUTH_JWKS_URL ??=
+  process.env.IDENTITY_INTERNAL_URL + '/.well-known/jwks.json';
 const require = createRequire(import.meta.url);
 const child = spawn(
   process.execPath,

@@ -13,3 +13,17 @@ Los puertos internos en contenedores son fijos; las variables de puertos de serv
 Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Las otras bases todavía no tienen modelos de negocio ni migraciones.
 
 Antes de operación real: TLS en el borde, un gestor externo para claves/secretos, rotación de claves, backups/restauración probados, límites de recursos y retención de logs. `AUTH_COOKIE_SECURE=true` es obligatorio con `NODE_ENV=production`. El rate limit de login está en memoria y requiere almacenamiento distribuido al desplegar múltiples réplicas. Las imágenes están fijadas por versión, no por digest; actualizar parches mediante revisión deliberada. NATS usa una identidad técnica común; definir ACL por servicio al establecer subjects de negocio.
+
+El servidor admin-web recibe IDENTITY_INTERNAL_URL=http://identity-service:3004. El navegador utiliza el mismo origen por Nginx. No se agregan contenedores ni puertos públicos. El modo local deriva la URL del puerto Identity si no existe un valor explícito; el gateway sustituye todas las rutas Identity por host.docker.internal.
+
+## Operación JWT/JWKS (Fase 1C)
+
+Cada servicio recibe AUTH_JWKS_URL, AUTH_ISSUER, AUTH_AUDIENCE, AUTH_ALLOWED_ALGORITHM, AUTH_JWKS_TIMEOUT_MS, AUTH_JWKS_CACHE_TTL_SECONDS y AUTH_ALLOWED_ORIGINS. Los nombres de cookies y cabecera se fijan por compatibilidad; los valores predeterminados están en .env.example y [delivery.md](../delivery.md).
+
+Compose utiliza la red privada para JWKS. El modo local deriva AUTH_JWKS_URL de IDENTITY_INTERNAL_URL; una URL explícita debe actualizarse al cambiar el puerto Identity. Turborepo permite estas variables durante pnpm dev.
+
+Una caída menor al TTL no interrumpe la validación con claves vigentes. Al caducar la caché, readiness y autenticación responden 503 hasta recuperar JWKS. Un servicio reiniciado no conserva claves anteriores. No se añade dependencia de arranque entre aplicaciones ni puertos publicados.
+
+Para rotar, publicar la clave nueva junto a la anterior, comenzar a emitir con el nuevo kid y mantener la anterior durante la vida máxima de access más TTL antes de retirarla. El verificador admite ese conjunto; Identity todavía publica una clave y la automatización de publicación/rotación requiere una tarea operativa aparte.
+
+Nginx debe recargarse después de editar su configuración montada: ejecutar nginx -t y luego nginx -s reload dentro del gateway. Try it out utiliza el gateway, cookies existentes y CSRF; no debe llamar a puertos internos.

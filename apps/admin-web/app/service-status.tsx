@@ -7,11 +7,9 @@ const labels: Record<Status, string> = {
   unavailable: 'No disponible',
 };
 export function ServiceStatus() {
-  const [statuses, setStatuses] = useState<Status[]>([
-    'checking',
-    'checking',
-    'checking',
-  ]);
+  const [statuses, setStatuses] = useState<Status[]>(
+    services.map(() => 'checking'),
+  );
   const [checkedAt, setCheckedAt] = useState<string>();
   const [busy, setBusy] = useState(true);
   const running = useRef(false);
@@ -48,7 +46,7 @@ export function ServiceStatus() {
         </button>
       </div>
       <div
-        className="grid gap-5 md:grid-cols-3"
+        className="grid gap-5 md:grid-cols-2"
         aria-live="polite"
         aria-busy={busy}
       >
