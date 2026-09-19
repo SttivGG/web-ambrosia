@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La lógica de inventario, producción, finanzas y comercio queda pendiente.
+Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory; producción, finanzas, compras y existencias quedan pendientes.
 
 ## Arquitectura
 
@@ -167,7 +167,7 @@ En PowerShell reemplazar `curl` por `curl.exe`. Los resultados de esta implement
 - `Configuración inválida`: revisar los nombres indicados, CORS como orígenes sin slash final, puertos válidos y credenciales. Los servicios no cargan `.env` implícitamente: `pnpm dev` centraliza la carga y Docker inyecta variables.
 - Readiness 503: comprobar PostgreSQL/NATS y URLs; liveness debe seguir en 200. Un servicio caído no impide que Nginx resuelva los demás.
 - Cambiar las claves en `.env` no modifica usuarios en un volumen PostgreSQL existente. Rotar contraseñas por SQL y actualizar URLs de forma coordinada; no borrar el volumen para resolverlo en entornos con datos.
-- Prisma sin modelos en los tres servicios de negocio sigue siendo intencional. Identidad sí tiene modelos y aplica migraciones versionadas mediante `identity-migrate`.
+- Inventory e Identity aplican migraciones versionadas mediante `inventory-migrate` e `identity-migrate`. Producción y finanzas siguen sin modelos de negocio.
 - Puerto ocupado: detener el proceso anterior o cambiar el puerto y regenerar el gateway local.
 - Scripts de inicialización Linux requieren LF; `.gitattributes` lo fija para futuros clones.
 - La skill UI disponible contenía referencias a scripts inexistentes. Se aplicaron directamente sus reglas de contraste, foco, estados con texto, tamaño táctil y responsive.
@@ -189,3 +189,13 @@ Swagger exige OWNER en Identity y OWNER/ADMIN en negocio. OPERATOR y VIEWER reci
 Las rutas privadas requieren @RequirePermissions; una omisión se rechaza. Cookies y Bearer son alternativas; credenciales distintas se rechazan. Las mutaciones con cookie requieren CSRF y origen autorizado. Ver [ADR-006](docs/adr/ADR-006-distributed-authentication-rbac.md), [entrega](docs/delivery.md) y [validación](docs/validation.md).
 
 La verificación específica puede repetirse con node scripts/verify-distributed-auth.mjs después de levantar el stack. Está incluida en test:stack y ejecuta Playwright real con los cuatro roles. No ejecutar en producción ni simultáneamente con las demás pruebas del stack.
+
+## Catálogo interno (Fase 2A)
+
+Abrir **http://localhost:8080/inventario/catalogo**. Permite administrar categorías y artículos, buscar, filtrar, ordenar, paginar, archivar y restaurar. OWNER, ADMIN y OPERATOR escriben; VIEWER consulta. El catálogo no contiene precios ni existencias actuales. Los recipientes de 4 y 8 onzas se describen por capacidad nominal, sin inferir peso neto del yogurt.
+
+La API pública usa `/api/inventory/catalog/{categories,items}` y conserva autenticación, CSRF y Swagger protegido. Las ediciones requieren `expectedVersion`; los conflictos conservan lo escrito en el formulario. Inventory tiene su propio modelo Prisma y la migración `202609170001_catalog`, aplicada por `inventory-migrate` sin borrar datos.
+
+Seed opcional, idempotente y exclusivo de categorías: `npx --yes pnpm@10.34.5 inventory:seed-catalog`. No se ejecuta automáticamente. No hay variables nuevas ni cambios mayores de dependencias.
+
+Consultar [operación del catálogo](docs/catalog.md), [ADR-007](docs/adr/ADR-007-inventory-catalog.md) y [validación](docs/validation.md). `node scripts/verify-catalog.mjs` verifica API, PostgreSQL y navegador reales; también forma parte de `test:stack` y elimina sus datos temporales.

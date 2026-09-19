@@ -172,3 +172,45 @@ La protección cubre UI, JSON, YAML y assets. Las rutas siguen siendo /api/auth/
 Los access emitidos siguen siendo válidos hasta expirar aunque una sesión se revoque. Logout elimina el acceso del navegador al borrar cookies, pero no invalida copias robadas inmediatamente en los servicios de negocio. La caché no persiste entre reinicios. Un arranque en frío necesita JWKS disponible. La rotación operativa de varias claves exige coordinación y no se automatiza en esta fase.
 
 Catálogo, proveedores, compras, lotes, producción, ventas, gastos e informes siguen pendientes. No se añadieron endpoints ficticios de negocio, tokens de máquina, gestión de usuarios, Redis ni Kubernetes. Los controladores de integración solo se compilan para pruebas. No se realizaron commits ni push.
+
+## Entrega de Fase 2A — Catálogo
+
+Categorías y artículos quedan en Inventory, con modelos Category y CatalogItem y migración aditiva 202609170001_catalog. El catálogo administrativo vive en /inventario/catalogo y consume /api/inventory/catalog mediante Nginx. No se agregan precios, proveedores, compras, existencias actuales, movimientos ni eventos NATS.
+
+### Archivos y decisiones
+
+| Grupo                                                                                    | Resultado                                                                                    |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| packages/contracts/src/catalog-v1.ts e index.ts                                          | Contratos v1 de recursos, altas, edición, transiciones, filtros, paginación, errores y enums |
+| services/inventory-service/prisma                                                        | Modelos, enums y migración con Decimal(24,10), índices, unicidad, FK restrictiva y checks    |
+| services/inventory-service/src/catalog                                                   | Servicio transaccional, dominio, controlador protegido, OpenAPI, seed y pruebas              |
+| services/inventory-service/src/{app.module,http,main}.ts                                 | Registro del catálogo, errores seguros y Swagger                                             |
+| services/inventory-service/{Dockerfile,vitest.config.ts}                                 | Job de migración y transformación de decoradores en pruebas                                  |
+| infrastructure/docker-compose.yml y scripts/compose.mjs                                  | inventory-migrate, sin puertos ni contenedores permanentes adicionales                       |
+| apps/admin-web/app/(protected)/inventario/catalogo/page.tsx                              | Ruta protegida por inventory.read                                                            |
+| apps/admin-web/components/catalog/catalog.tsx                                            | Listados, filtros, formularios, confirmaciones y comparación de versiones                    |
+| apps/admin-web/lib/api/catalog.ts                                                        | Cliente con CSRF, errores tipados y validación de respuestas                                 |
+| apps/admin-web/components/layout/admin-shell.tsx, lib/auth/return-to.ts, app/globals.css | Navegación Inventario → Catálogo, retorno seguro y diseño responsive                         |
+| apps/admin-web/tests/{catalog,components}.test.*                                         | Pruebas nuevas del cliente y adaptación del mock de navegación existente                     |
+| scripts/{seed-catalog,verify-catalog,auth-test-fixture,verify-stack}.mjs, package.json   | Seed manual, PostgreSQL/Playwright, fixtures temporales e integración en stack               |
+| README.md, docs/catalog.md, docs/architecture, ADR-007 y documentos de entrega           | Operación, decisiones y evidencias                                                           |
+
+Los enums son ItemType, InventoryBaseUnit, OperationUnit y NominalCapacityUnit. Los valores de transporte proceden de contracts; frontend y backend no mantienen copias manuales de esos arrays. Prisma declara sus enums de almacenamiento dentro de Inventory. Las dimensiones y reglas completas se detallan en ADR-007.
+
+Los doce endpoints están documentados en docs/catalog.md. GET requiere inventory.read; POST/PATCH y transiciones requieren inventory.write. OWNER, ADMIN y OPERATOR escriben; VIEWER lee. Toda mutación por cookie valida CSRF con la infraestructura existente. Swagger sigue reservado a OWNER/ADMIN.
+
+SKU queda fijo después de crear y reservado aunque se archive. Barcode no nulo también es único. El slug es generado y estable. expectedVersion protege edición, archivado y restauración mediante id + version; PostgreSQL serializable protege las carreras entre categorías y artículos. Los errores no revelan Prisma/SQL y los logs omiten cuerpos y credenciales.
+
+La interfaz ofrece tabla de escritorio y tarjetas móviles, estados de carga/error/vacío, paginación, labels, foco visible y diálogos nativos. Un conflicto conserva el formulario y exige comparar la versión actual antes de volver a guardar. La capacidad nominal de recipientes de 4/8 oz no se usa como peso neto. El mínimo es un umbral futuro, no existencia editable.
+
+No hay variables nuevas. El seed opcional inventory:seed-catalog crea solo seis categorías y preserva registros existentes. La migración y el seed usan únicamente ambrosia_inventory. No se ejecutó el seed contra datos operativos de forma automática.
+
+### Validaciones y límites
+
+Los comandos, total de pruebas, resultados Playwright/test:stack, estado de contenedores y revisión de secretos se registran con evidencia real en validation.md. Los artifacts no se rastrean en Git. No se realizan commits ni push.
+
+Límites: los conflictos serializables requieren revisión y nuevo envío; no se reintentan mutaciones. Los listados usan búsqueda por contains y paginación por desplazamiento, adecuados para el catálogo inicial; se deberá revisar su rendimiento si crece sustancialmente. El seed no restaura ni modifica categorías existentes. La revocación JWT, coordinación entre pestañas y caché JWKS conservan los límites de ADR-006.
+
+Fase 2B queda reservada para proveedores y su relación futura con el catálogo, según la siguiente especificación. Compras, precios, existencias, movimientos, lotes, producción, ventas y Outbox no se anticipan en esta entrega.
+
+Cierre: 255 pruebas aprobadas (80 nuevas), 15 grupos de test:stack y diez grupos de catálogo con PostgreSQL/Playwright reales. Stack restaurado con ocho contenedores saludables y solo 8080 publicado; fixtures eliminados. Fase 2A completada; detalles reproducibles en validation.md.

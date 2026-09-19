@@ -1,3 +1,5 @@
+import { CatalogController } from './catalog/catalog.controller';
+import { CatalogService } from './catalog/catalog.service';
 import { NestAuthModule, authOptions } from '@ambrosia/nest-auth';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -19,7 +21,7 @@ import { EventBusService } from './event-bus.service';
         }),
     }),
   ],
-  controllers: [HealthController],
-  providers: [PrismaService, EventBusService],
+  controllers: [HealthController, CatalogController],
+  providers: [PrismaService, EventBusService, CatalogService],
 })
 export class AppModule {}

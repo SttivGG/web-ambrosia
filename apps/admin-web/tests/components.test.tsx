@@ -10,7 +10,10 @@ import { SessionGate } from '../components/auth/session-gate';
 import { AuthError } from '../lib/auth/errors';
 import * as client from '../lib/auth/client';
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => router }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  usePathname: () => '/dashboard',
+}));
 vi.mock('../lib/auth/client', async (importOriginal) => {
   const actual = await importOriginal<typeof client>();
   return {

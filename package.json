@@ -26,6 +26,7 @@
     "test:local": "node scripts/verify-local.mjs",
     "test:ui": "node scripts/verify-ui.mjs",
     "auth:keys:generate": "node scripts/generate-auth-keys.mjs",
+    "inventory:seed-catalog": "node scripts/seed-catalog.mjs",
     "auth:bootstrap-owner": "node scripts/bootstrap-owner.mjs"
   },
   "devDependencies": {

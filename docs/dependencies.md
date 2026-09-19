@@ -79,3 +79,9 @@ No se actualizaron versiones mayores existentes. El comando raíz de Vitest limi
 Su configuración de Vitest transforma decoradores con TypeScript, igual que la compilación Nest de producción, para probar una aplicación HTTP real sin incluir controladores de prueba en dist. El lockfile conserva versiones existentes y agrega los enlaces del workspace.
 
 ADR-006 autoriza compartir esta infraestructura de autenticación; continúa prohibido compartir Prisma, persistencia o dominio entre servicios.
+
+## Fase 2A — Catálogo
+
+No incorpora dependencias externas ni actualiza versiones. Reutiliza Zod 4.6.5 para contratos versionados, Prisma 7.10.0 con Decimal(24,10), el cliente autenticado del panel y nest-auth. El lockfile permanece vigente. Inventory añade una configuración de Vitest con el transformador TypeScript ya empleado por nest-auth para verificar decoradores Nest.
+
+La interfaz aplica las pautas pertinentes de ui-ux-pro-max y conserva el diseño existente. Su script de búsqueda no está disponible en la instalación local; no se añade tooling de diseño al repositorio. Operación y límites: [catálogo](catalog.md) y [ADR-007](adr/ADR-007-inventory-catalog.md).

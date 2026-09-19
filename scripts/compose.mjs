@@ -25,7 +25,15 @@ if (['infra-up', 'infra-down', 'gateway-up', 'logs'].includes(task)) {
   args.push('-f', 'infrastructure/docker-compose.dev.yml');
 }
 const commands = {
-  'infra-up': ['up', '-d', '--build', 'postgres', 'nats', 'identity-migrate'],
+  'infra-up': [
+    'up',
+    '-d',
+    '--build',
+    'postgres',
+    'nats',
+    'identity-migrate',
+    'inventory-migrate',
+  ],
   'infra-down': ['stop', 'postgres', 'nats'],
   'gateway-up': ['up', '-d', '--no-deps', 'gateway'],
   logs: ['logs', '-f', 'postgres', 'nats'],

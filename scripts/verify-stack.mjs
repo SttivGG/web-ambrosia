@@ -170,6 +170,19 @@ try {
   });
   assert.equal(protectedResponse.status, 307);
   assert.ok(protectedResponse.headers.get('location')?.includes('/login'));
+  const catalogVerification = spawnSync(
+    process.execPath,
+    ['scripts/verify-catalog.mjs'],
+    { stdio: 'inherit', env: process.env },
+  );
+  assert.equal(
+    catalogVerification.status,
+    0,
+    'Catálogo: PostgreSQL, RBAC y Playwright',
+  );
+  pass(
+    'Catálogo de artículos y categorías: API, migración, concurrencia y navegador',
+  );
   const uiVerification = spawnSync(
     process.execPath,
     ['scripts/verify-ui.mjs'],

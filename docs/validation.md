@@ -228,3 +228,48 @@ El login se verificó rellenando y enviando el formulario real en Chromium autom
 Estado final comprobado: ocho contenedores running/healthy; solamente gateway publica 8080 en IPv4/IPv6. La consulta mediante Prisma propio de Identity devolvió cero usuarios temporales de Fases 1A/1B/1C. Stack restaurado y marcadores eliminados. Los cambios permanecen en el árbol de trabajo junto con los cambios previos, sin commits ni push.
 
 **FASE 1C COMPLETADA**. La Fase 1 queda completada en el roadmap; Fase 2 no se inició.
+
+## Validación de Fase 2A — 2026-09-18
+
+Se implementaron categorías y artículos únicamente en Inventory, con contratos v1 y panel en español. No se agregaron dependencias, variables, precios, existencias, proveedores ni eventos. El lockfile permanece sin cambios. Los comandos pnpm se ejecutaron mediante `npx --yes pnpm@10.34.5`.
+
+| Comando                                | Resultado real                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| install --frozen-lockfile              | Salida 0; lockfile vigente                                                 |
+| lint                                   | Salida 0                                                                   |
+| typecheck                              | Salida 0                                                                   |
+| test                                   | Salida 0; 255 pruebas únicas                                               |
+| build                                  | Salida 0; ocho tareas, incluida la ruta del catálogo                       |
+| test:stack                             | 15 grupos aprobados; informe final del 18 de septiembre a las 12:31:42 UTC |
+| Compose base y base+dev config --quiet | Salida 0                                                                   |
+| nginx -t                               | Salida 0                                                                   |
+| node scripts/verify-auth-boundary.mjs  | Salida 0; tres comprobaciones                                              |
+
+Se conservan las 175 pruebas anteriores y se agregan 80: 73 del catálogo backend y siete del cliente frontend. Total: 67 frontend, 29 Identity, 79 Inventory, seis Production, seis Finance, 54 nest-auth y 14 raíz. Algunas tareas utilizaron la caché de Turbo; no se cuentan ejecuciones duplicadas como pruebas adicionales.
+
+La suite de catálogo aprobó diez grupos contra PostgreSQL y Chromium reales. Aplicó la migración en un esquema aislado con la cuenta propia de Inventory, ejecutó dos veces el seed y confirmó seis categorías, cero artículos y preservación de personalizaciones. Probó unicidad, precisión Decimal, capacidades de 4/8 oz, reglas de unidades, filtros, paginación, edición simultánea y carrera entre archivar categoría y crear artículo. Comprobó persistencia tras reinicio y migrate deploy repetido, respuestas 401/403, CSRF, Bearer, credenciales ambiguas y JWT vencido.
+
+Playwright verificó creación, edición, búsqueda, filtros, conflicto sin perder el formulario, archivado y restauración. OWNER, ADMIN y OPERATOR pudieron escribir; VIEWER solo leer, con rechazo también en llamada manual. Se revisaron escritorio, 375×812 y 812×375, sin desbordamiento horizontal, errores JavaScript, tokens en URL/Web Storage ni tráfico a puertos internos. Las capturas se inspeccionaron visualmente. Las suites anteriores de autenticación distribuida (11 grupos) y panel (12 grupos) también pasaron por Nginx.
+
+El stack aprobó los 15 grupos, incluyendo ocho contenedores saludables, únicamente gateway con puerto publicado, independencia de servicios, caídas y recuperación de NATS/PostgreSQL, doce conexiones cruzadas rechazadas y persistencia PostgreSQL/JetStream. La limpieza del catálogo confirmó la eliminación de registros, esquema aislado y usuarios temporales. El seed no se ejecutó contra el catálogo operativo.
+
+La revisión de exposición comprobó archivos, bundle y logs sin encontrar secretos, cookies completas, JWT ni claves privadas. Los artifacts y secretos locales siguen ignorados. No se realizaron commits ni push.
+
+Durante la validación se corrigieron el default de trackInventory en PATCH, la lectura de metadatos de unicidad del adaptador PostgreSQL, nombres accesibles de filtros y sincronización de las pruebas de navegador. El disco del sistema se llenó durante Docker build; se liberaron cachés regenerables y se recuperó Docker conservando los volúmenes. Los intentos fallidos no se contabilizan como aprobados. Después del último informe satisfactorio, Docker Desktop se detuvo; la comprobación de cierre se registra a continuación por separado.
+
+Evidencias locales ignoradas: artifacts/phase2a-{install,format,lint,typecheck,test,build,stack,boundary}.log, artifacts/catalog-verification.json, artifacts/stack-verification.json, artifacts/distributed-auth-verification.json, artifacts/ui-verification.json y capturas artifacts/catalog-*.png. La entrega y sus límites están documentados en delivery.md; las reglas y operación, en catalog.md y ADR-007.
+
+Comprobación de cierre: Docker Desktop se inició de nuevo y `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --no-build` terminó con salida 0. Los ocho contenedores permanentes quedaron running/healthy; solamente gateway publica 8080 en IPv4/IPv6. Los jobs identity-db-provision, identity-migrate e inventory-migrate terminaron con código 0. Se conservaron los volúmenes y las imágenes verificadas.
+
+`pnpm format:check` y `git diff --check` terminaron con salida 0 tras actualizar la documentación. La revisión final de exposición volvió a aprobar sus tres comprobaciones con Docker restaurado. El roadmap marca Fase 2 — En progreso: 2A completada; Fase 2B sigue pendiente.
+
+**FASE 2A COMPLETADA**.
+
+## Corrección de categorías y ayuda de capacidad — 2026-09-18
+
+- Diagnóstico local: Inventory tenía cero categorías activas. Se ejecutó el seed existente, que incorpora las seis categorías iniciales sin sobrescribir registros.
+- El panel bloquea Nuevo artículo durante la carga, ante error o sin categorías activas; en el último caso explica cómo crear/restaurar categorías y ofrece Crear categoría.
+- Se aclararon los campos de capacidad con ejemplos de 4 onzas y 1 litro, la opción No aplica y ayuda asociada mediante aria-describedby.
+- Validaciones ejecutadas: pnpm lint, pnpm typecheck, pnpm test y pnpm build mediante npx pnpm@10.34.5; todas terminaron con código 0. ESLint del script de verificación también pasó después de actualizarlo.
+- Se reconstruyó y levantó admin-web en Docker. node scripts/verify-catalog.mjs terminó con código 0, incluido el nuevo escenario de categorías vacías simulado en el navegador, selección de categorías y guardado real de leche y empaques de 4/8 oz. Los fixtures temporales se eliminaron.
+- Evidencia: artifacts/catalog-verification.json. El login y readiness de Inventory respondieron HTTP 200 tras las pruebas.

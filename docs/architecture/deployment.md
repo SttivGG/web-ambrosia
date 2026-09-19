@@ -10,7 +10,7 @@ Las aplicaciones no requieren que otro microservicio esté sano para arrancar. L
 
 Los puertos internos en contenedores son fijos; las variables de puertos de servicios corresponden al modo local. GATEWAY_PORT controla la publicación. POSTGRES_HOST/POSTGRES_PORT describen el host local y las URLs deben actualizarse al modificarlos. En contenedores el DNS es postgres:5432 y nats:4222.
 
-Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Las otras bases todavía no tienen modelos de negocio ni migraciones.
+Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Inventory incorpora inventory-migrate con la misma separación entre migración y proceso HTTP. Producción y finanzas aún no tienen modelos de negocio.
 
 Antes de operación real: TLS en el borde, un gestor externo para claves/secretos, rotación de claves, backups/restauración probados, límites de recursos y retención de logs. `AUTH_COOKIE_SECURE=true` es obligatorio con `NODE_ENV=production`. El rate limit de login está en memoria y requiere almacenamiento distribuido al desplegar múltiples réplicas. Las imágenes están fijadas por versión, no por digest; actualizar parches mediante revisión deliberada. NATS usa una identidad técnica común; definir ACL por servicio al establecer subjects de negocio.
 
@@ -27,3 +27,9 @@ Una caída menor al TTL no interrumpe la validación con claves vigentes. Al cad
 Para rotar, publicar la clave nueva junto a la anterior, comenzar a emitir con el nuevo kid y mantener la anterior durante la vida máxima de access más TTL antes de retirarla. El verificador admite ese conjunto; Identity todavía publica una clave y la automatización de publicación/rotación requiere una tarea operativa aparte.
 
 Nginx debe recargarse después de editar su configuración montada: ejecutar nginx -t y luego nginx -s reload dentro del gateway. Try it out utiliza el gateway, cookies existentes y CSRF; no debe llamar a puertos internos.
+
+## Migración de catálogo
+
+inventory-migrate usa la imagen de build de Inventory, su DATABASE_URL y prisma migrate deploy. Depende únicamente de PostgreSQL saludable; inventory-service espera su finalización correcta. Es un job, no un noveno servicio permanente. La migración es aditiva sobre la base de Fase 1; sus checks protegen cantidades, unidades y archivado. Nunca ejecutar db push ni recrear volúmenes para aplicarla.
+
+stack:up e infra:up incluyen el job. La aplicación no recibe credenciales administrativas. No cambia Nginx ni se publican puertos nuevos. El seed opcional se ejecuta manualmente con inventory:seed-catalog; no forma parte del despliegue automático. Las pruebas de catálogo crean un esquema PostgreSQL temporal dentro de Inventory, usan fixtures de Identity dentro de su propio contenedor y eliminan solamente esos datos al terminar.

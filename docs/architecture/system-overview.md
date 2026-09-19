@@ -1,6 +1,6 @@
 # Arquitectura de Ambrosia
 
-Estado: Fase 1 en progreso; 1A y 1B completadas. Cuatro microservicios desplegables y detenibles de forma independiente. Identidad es el único dominio funcional incorporado después de la fundación técnica.
+Estado: Fase 1 completada; Fase 2A incorpora el catálogo de inventario. Cuatro microservicios desplegables y detenibles de forma independiente. Identidad y catálogo tienen persistencia propia.
 
 ```mermaid
 flowchart TD
@@ -43,3 +43,7 @@ Los tres servicios de negocio incorporan @ambrosia/nest-auth como infraestructur
 Readiness añade dependencies.jwks: requiere una clave pública vigente o una descarga válida, además de PostgreSQL y JetStream. Liveness sigue comprobando solo el proceso. No hay llamada a Identity en cada petición. El contrato HealthV1 añade jwks opcional para conservar compatibilidad con Identity.
 
 Ver [ADR-006](../adr/ADR-006-distributed-authentication-rbac.md) para la caché, rotación, CSRF, revocación y matriz de permisos. El mapa rol-permisos continúa perteneciendo a Identity; negocio utiliza los permisos del token verificado.
+
+## Catálogo de inventario (Fase 2A)
+
+Category y CatalogItem pertenecen exclusivamente a Inventory y ambrosia_inventory. El panel consume contratos v1 por Nginx, usando la sesión y permisos existentes. Las mutaciones usan versión optimista y transacciones serializables; no hay consultas cruzadas ni eventos sin Outbox. El job inventory-migrate aplica la migración antes del servicio HTTP. Véase [ADR-007](../adr/ADR-007-inventory-catalog.md).

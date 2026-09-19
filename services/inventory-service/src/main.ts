@@ -49,7 +49,7 @@ async function bootstrap() {
       .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
-        'Fundación técnica de Ambrosia. Liveness del proceso y readiness de PostgreSQL y NATS JetStream.',
+        'Catálogo interno v1: categorías y artículos. Lectura: inventory.read; mutaciones: inventory.write. Cookies requieren X-CSRF-Token y Origin autorizado; Bearer exclusivo no requiere CSRF. expectedVersion protege PATCH, archive y restore. Decimales como strings; capacidad nominal no implica peso neto.',
       )
       .build(),
   );

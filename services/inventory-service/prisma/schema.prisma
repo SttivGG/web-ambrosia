@@ -1,4 +1,3 @@
-// Fase 0: deliberadamente sin modelos de negocio.
 generator client {
  provider = "prisma-client"
  output = "../src/generated/prisma"
@@ -6,4 +5,69 @@ generator client {
 }
 datasource db {
  provider = "postgresql"
+}
+enum ItemType {
+ RAW_MATERIAL
+ PACKAGING
+ FINISHED_PRODUCT
+ BYPRODUCT
+ SUPPLY
+}
+enum InventoryBaseUnit {
+ UNIT
+ GRAM
+ MILLILITER
+}
+enum OperationUnit {
+ UNIT
+ GRAM
+ KILOGRAM
+ MILLILITER
+ LITER
+}
+enum NominalCapacityUnit {
+ MILLILITER
+ FLUID_OUNCE
+ GRAM
+}
+model Category {
+ id String @id @default(uuid()) @db.Uuid
+ name String @db.VarChar(80)
+ normalizedName String @unique @db.VarChar(160)
+ slug String @unique @db.VarChar(200)
+ description String? @db.VarChar(2000)
+ active Boolean @default(true)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ archivedAt DateTime? @db.Timestamptz(3)
+ items CatalogItem[]
+ @@index([active, name, id])
+}
+model CatalogItem {
+ id String @id @default(uuid()) @db.Uuid
+ sku String @unique @db.VarChar(40)
+ normalizedSku String @unique @db.VarChar(40)
+ name String @db.VarChar(120)
+ normalizedName String @db.VarChar(240)
+ description String? @db.VarChar(2000)
+ itemType ItemType
+ categoryId String @db.Uuid
+ category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+ inventoryBaseUnit InventoryBaseUnit
+ defaultOperationUnit OperationUnit
+ nominalCapacityValue Decimal? @db.Decimal(24,10)
+ nominalCapacityUnit NominalCapacityUnit?
+ trackInventory Boolean @default(true)
+ minimumStockBase Decimal? @db.Decimal(24,10)
+ barcode String? @unique @db.VarChar(80)
+ active Boolean @default(true)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ archivedAt DateTime? @db.Timestamptz(3)
+ @@index([categoryId, active])
+ @@index([active, name, id])
+ @@index([itemType, inventoryBaseUnit])
+ @@index([normalizedName])
 }

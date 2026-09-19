@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useSession } from '../auth/session-provider';
 import { UserMenu } from '../auth/user-menu';
 const roleNames = {
@@ -10,7 +11,8 @@ const roleNames = {
   VIEWER: 'Consulta',
 };
 export function AdminShell({ children }: { children: ReactNode }) {
-  const { user, status } = useSession();
+  const { user, status, permissions } = useSession();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -56,18 +58,23 @@ export function AdminShell({ children }: { children: ReactNode }) {
           >
             <Link
               href="/dashboard"
-              aria-current="page"
+              aria-current={pathname === '/dashboard' ? 'page' : undefined}
               onClick={() => setOpen(false)}
             >
               Inicio
             </Link>
-            {[
-              'Compras',
-              'Inventario',
-              'Producción',
-              'Finanzas',
-              'Informes',
-            ].map((name) => (
+            {permissions.includes('inventory.read') && (
+              <Link
+                href="/inventario/catalogo"
+                aria-current={
+                  pathname === '/inventario/catalogo' ? 'page' : undefined
+                }
+                onClick={() => setOpen(false)}
+              >
+                Inventario <small>Catálogo</small>
+              </Link>
+            )}
+            {['Compras', 'Producción', 'Finanzas', 'Informes'].map((name) => (
               <span className="nav-coming" key={name}>
                 {name}
                 <small>Próximamente</small>
