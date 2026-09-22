@@ -45,6 +45,7 @@ model Category {
  @@index([active, name, id])
 }
 model CatalogItem {
+ suppliers SupplierItem[]
  id String @id @default(uuid()) @db.Uuid
  sku String @unique @db.VarChar(40)
  normalizedSku String @unique @db.VarChar(40)
@@ -70,4 +71,38 @@ model CatalogItem {
  @@index([active, name, id])
  @@index([itemType, inventoryBaseUnit])
  @@index([normalizedName])
+}
+
+model Supplier {
+ id String @id @default(uuid()) @db.Uuid
+ code String @unique @db.VarChar(40)
+ name String @db.VarChar(160)
+ tradeName String? @db.VarChar(160)
+ identificationType String? @db.VarChar(20)
+ identificationNumber String? @db.VarChar(40)
+ normalizedIdentification String? @db.VarChar(40)
+ contactName String? @db.VarChar(120)
+ email String? @db.VarChar(254)
+ phone String? @db.VarChar(40)
+ address String? @db.VarChar(240)
+ municipality String? @db.VarChar(100)
+ department String? @db.VarChar(100)
+ notes String? @db.VarChar(2000)
+ active Boolean @default(true)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ archivedAt DateTime? @db.Timestamptz(3)
+ items SupplierItem[]
+ @@unique([identificationType, normalizedIdentification])
+ @@index([active, name, id])
+}
+
+model SupplierItem {
+ supplierId String @db.Uuid
+ itemId String @db.Uuid
+ supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+ item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+ @@id([supplierId, itemId])
+ @@index([itemId])
 }

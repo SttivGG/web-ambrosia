@@ -11,7 +11,7 @@ export function safeReturnTo(value: unknown): string {
     const url = new URL(value, 'https://ambrosia.invalid');
     if (
       url.origin !== 'https://ambrosia.invalid' ||
-      !/^\/(?:dashboard(?:\/|$)|inventario\/catalogo(?:\/|$))/.test(
+      !/^\/(?:dashboard(?:\/|$)|inventario\/(?:catalogo|proveedores)(?:\/|$))/.test(
         url.pathname,
       )
     )

@@ -51,6 +51,9 @@ importers:
       server-only:
         specifier: 0.0.1
         version: 0.0.1
+      sweetalert2:
+        specifier: 11.26.25
+        version: 11.26.25
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 4.3.3
@@ -3644,6 +3647,9 @@ packages:
 
   swagger-ui-dist@5.32.13:
     resolution: {integrity: sha512-qQobzb3DeC2LeK0j3E8812Ef4aIq1y9flJxvZkimkqUC/w4u7wS+yCc+VakqGJLweUUBrI24effhwo8OsAvNAw==}
+
+  sweetalert2@11.26.25:
+    resolution: {integrity: sha512-+hunCOJdJ6FLj04T9YSLvvZXRjsvIkTeTKP2e4VF8CaBias961BTnWiSFAy7F/CM5eq3QK2Rraoc5Gzftslvkg==}
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
@@ -7349,6 +7355,8 @@ snapshots:
   swagger-ui-dist@5.32.13:
     dependencies:
       '@scarf/scarf': 1.4.0
+
+  sweetalert2@11.26.25: {}
 
   symbol-tree@3.2.4: {}
 

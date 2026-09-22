@@ -43,6 +43,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </header>
       <div className="admin-grid">
         <aside className="sidebar">
+          <p className="sidebar-label">ESPACIO DE TRABAJO</p>
           <button
             className="mobile-menu"
             aria-expanded={open}
@@ -72,6 +73,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 onClick={() => setOpen(false)}
               >
                 Inventario <small>Catálogo</small>
+              </Link>
+            )}
+            {permissions.includes('inventory.read') && (
+              <Link
+                href="/inventario/proveedores"
+                aria-current={
+                  pathname === '/inventario/proveedores' ? 'page' : undefined
+                }
+                onClick={() => setOpen(false)}
+              >
+                Proveedores
               </Link>
             )}
             {['Compras', 'Producción', 'Finanzas', 'Informes'].map((name) => (

@@ -33,3 +33,7 @@ Nginx debe recargarse después de editar su configuración montada: ejecutar ngi
 inventory-migrate usa la imagen de build de Inventory, su DATABASE_URL y prisma migrate deploy. Depende únicamente de PostgreSQL saludable; inventory-service espera su finalización correcta. Es un job, no un noveno servicio permanente. La migración es aditiva sobre la base de Fase 1; sus checks protegen cantidades, unidades y archivado. Nunca ejecutar db push ni recrear volúmenes para aplicarla.
 
 stack:up e infra:up incluyen el job. La aplicación no recibe credenciales administrativas. No cambia Nginx ni se publican puertos nuevos. El seed opcional se ejecuta manualmente con inventory:seed-catalog; no forma parte del despliegue automático. Las pruebas de catálogo crean un esquema PostgreSQL temporal dentro de Inventory, usan fixtures de Identity dentro de su propio contenedor y eliminan solamente esos datos al terminar.
+
+## Migración de proveedores
+
+202609190001_suppliers es aditiva. Para la base local con datos, prepare-suppliers.mjs --migrate genera y verifica un respaldo ignorado por Git, prueba instalación limpia y actualización desde 2A en esquemas aislados y después aplica migrate deploy dos veces. Compara categorías y artículos antes/después. Un fallo de respaldo o ensayo impide avanzar. No modifica usuarios, volúmenes ni migraciones anteriores. El informe queda en artifacts/suppliers-migration.json.

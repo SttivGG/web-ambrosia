@@ -214,3 +214,13 @@ Límites: los conflictos serializables requieren revisión y nuevo envío; no se
 Fase 2B queda reservada para proveedores y su relación futura con el catálogo, según la siguiente especificación. Compras, precios, existencias, movimientos, lotes, producción, ventas y Outbox no se anticipan en esta entrega.
 
 Cierre: 255 pruebas aprobadas (80 nuevas), 15 grupos de test:stack y diez grupos de catálogo con PostgreSQL/Playwright reales. Stack restaurado con ocho contenedores saludables y solo 8080 publicado; fixtures eliminados. Fase 2A completada; detalles reproducibles en validation.md.
+
+## Entrega de Fase 2B (completada)
+
+Directorio de proveedores implementado en Inventory y /inventario/proveedores. Incluye contratos v1, seis endpoints con permisos existentes, identificación opcional, archivado/restauración, relaciones atómicas con artículos y resolución explícita de conflictos. La guía suppliers.md describe límites y operación; ADR-008 documenta normalización y garantías transaccionales.
+
+Archivos nuevos: packages/contracts/src/supplier-v1.ts; services/inventory-service/src/suppliers/*; migración 202609190001_suppliers; componente, ruta, cliente y pruebas de proveedores en admin-web; scripts prepare-suppliers, prepare-suppliers-isolated y verify-suppliers. Integraciones: schema.prisma, app.module, filtro de errores, export de contratos, navegación, retorno de login, estilos, helper de fixtures y test:stack. La suite anterior de catálogo ahora espera las dos migraciones, conservando sus aserciones funcionales.
+
+No cambia el lockfile ni se agregan servicios, puertos o dependencias. No hay compras, precios, existencias ni eventos. Los comandos y el cierre operativo se registran por separado en validation.md. Sin commit ni push.
+
+Cierre operativo: 325 pruebas (255 anteriores y 70 nuevas), seis grupos reales de proveedores y 16 de test:stack aprobados. Respaldo verificado, migración aislada y local aprobadas, catálogo original conservado y fixtures eliminados. Ocho contenedores saludables, solo 8080 publicado; revisión de secretos aprobada. Las capturas de escritorio y móvil se inspeccionaron. El panel final se reconstruyó para servir los tipos de identificación en español y proveedores se verificó nuevamente. FASE 2B COMPLETADA; evidencia y comandos en validation.md.

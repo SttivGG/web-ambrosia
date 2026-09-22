@@ -1,3 +1,5 @@
+import { SuppliersController } from './suppliers/suppliers.controller';
+import { SuppliersService } from './suppliers/suppliers.service';
 import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { NestAuthModule, authOptions } from '@ambrosia/nest-auth';
@@ -21,7 +23,7 @@ import { EventBusService } from './event-bus.service';
         }),
     }),
   ],
-  controllers: [HealthController, CatalogController],
-  providers: [PrismaService, EventBusService, CatalogService],
+  controllers: [HealthController, CatalogController, SuppliersController],
+  providers: [PrismaService, EventBusService, CatalogService, SuppliersService],
 })
 export class AppModule {}

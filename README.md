@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory; producción, finanzas, compras y existencias quedan pendientes.
+Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; producción, finanzas, compras y existencias quedan pendientes.
 
 ## Arquitectura
 
@@ -199,3 +199,9 @@ La API pública usa `/api/inventory/catalog/{categories,items}` y conserva auten
 Seed opcional, idempotente y exclusivo de categorías: `npx --yes pnpm@10.34.5 inventory:seed-catalog`. No se ejecuta automáticamente. No hay variables nuevas ni cambios mayores de dependencias.
 
 Consultar [operación del catálogo](docs/catalog.md), [ADR-007](docs/adr/ADR-007-inventory-catalog.md) y [validación](docs/validation.md). `node scripts/verify-catalog.mjs` verifica API, PostgreSQL y navegador reales; también forma parte de `test:stack` y elimina sus datos temporales.
+
+## Proveedores (Fase 2B)
+
+El directorio /inventario/proveedores permite crear, consultar, editar, archivar y restaurar proveedores y asociarlos con artículos. VIEWER accede al detalle; inventory.write habilita cambios con control de versión. La identificación fiscal es opcional como pareja, sin verificación externa.
+
+Ver [guía de proveedores](docs/suppliers.md), [ADR-008](docs/adr/ADR-008-inventory-suppliers.md) y [validación](docs/validation.md). Antes de migrar datos locales, ejecutar node scripts/prepare-suppliers.mjs --migrate: respalda, verifica, ensaya en esquemas aislados y comprueba conservación del catálogo. node scripts/verify-suppliers.mjs ejecuta PostgreSQL y Playwright reales y forma parte de test:stack. No ejecutar suites de stack simultáneamente.

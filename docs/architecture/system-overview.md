@@ -1,6 +1,6 @@
 # Arquitectura de Ambrosia
 
-Estado: Fase 1 completada; Fase 2A incorpora el catálogo de inventario. Cuatro microservicios desplegables y detenibles de forma independiente. Identidad y catálogo tienen persistencia propia.
+Estado: Fase 1 completada; Fases 2A y 2B incorporan catálogo y proveedores de inventario. Cuatro microservicios desplegables y detenibles de forma independiente. Identidad y catálogo tienen persistencia propia.
 
 ```mermaid
 flowchart TD
@@ -47,3 +47,7 @@ Ver [ADR-006](../adr/ADR-006-distributed-authentication-rbac.md) para la caché,
 ## Catálogo de inventario (Fase 2A)
 
 Category y CatalogItem pertenecen exclusivamente a Inventory y ambrosia_inventory. El panel consume contratos v1 por Nginx, usando la sesión y permisos existentes. Las mutaciones usan versión optimista y transacciones serializables; no hay consultas cruzadas ni eventos sin Outbox. El job inventory-migrate aplica la migración antes del servicio HTTP. Véase [ADR-007](../adr/ADR-007-inventory-catalog.md).
+
+## Proveedores (Fase 2B)
+
+Supplier y SupplierItem amplían Inventory con un directorio y relaciones muchos-a-muchos con CatalogItem. Usan exclusivamente ambrosia_inventory, su cliente Prisma y contratos v1. Las mutaciones atómicas usan expectedVersion y Serializable; las nuevas asociaciones bloquean los artículos mientras comprueban actividad. Ver ADR-008. Los ocho servicios permanentes y el gateway conservan su configuración.

@@ -23,6 +23,7 @@ import {
   type CategoryV1,
   type CatalogItemV1,
 } from '@ambrosia/contracts';
+import { confirmDiscard } from '../../lib/ui/notifications';
 import { useSession } from '../auth/session-provider';
 import { catalogRequest, CatalogRequestError } from '../../lib/api/catalog';
 const names: Record<string, string> = {
@@ -193,8 +194,7 @@ export function Catalog() {
       <p className="eyebrow">INVENTARIO</p>
       <h1>Catálogo</h1>
       <p className="muted">
-        Organiza artículos, unidades y presentaciones. El control de existencias
-        se habilitará en la Fase 3.
+        Organiza los artículos, unidades y presentaciones de tu catálogo.
       </p>
       <div className="catalog-toolbar">
         <div className="catalog-actions">
@@ -523,6 +523,21 @@ function Editor({
       else errorRef.current?.focus();
     }, 0);
   }
+  async function dismiss() {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      if (
+        modal.mode !== 'edit' ||
+        (await confirmDiscard(form.current?.closest('dialog')))
+      )
+        close();
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pending.current) return;
@@ -609,17 +624,7 @@ function Editor({
     setOperation(value);
   };
   return (
-    <Dialog
-      title={title}
-      close={() => {
-        if (
-          !pending.current &&
-          (modal.mode !== 'edit' ||
-            window.confirm('¿Cerrar y descartar los cambios sin guardar?'))
-        )
-          close();
-      }}
-    >
+    <Dialog title={title} close={() => void dismiss()}>
       <form ref={form} onSubmit={submit}>
         {modal.mode === 'edit' ? (
           <div className="catalog-form">
@@ -894,17 +899,7 @@ function Editor({
           </div>
         )}
         <div className="catalog-actions">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              if (
-                modal.mode !== 'edit' ||
-                window.confirm('¿Descartar los cambios sin guardar?')
-              )
-                close();
-            }}
-          >
+          <button type="button" disabled={busy} onClick={() => void dismiss()}>
             Cancelar
           </button>
           <button className="refresh" disabled={busy || conflict} type="submit">

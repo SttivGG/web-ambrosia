@@ -273,3 +273,82 @@ Comprobación de cierre: Docker Desktop se inició de nuevo y `docker compose --
 - Validaciones ejecutadas: pnpm lint, pnpm typecheck, pnpm test y pnpm build mediante npx pnpm@10.34.5; todas terminaron con código 0. ESLint del script de verificación también pasó después de actualizarlo.
 - Se reconstruyó y levantó admin-web en Docker. node scripts/verify-catalog.mjs terminó con código 0, incluido el nuevo escenario de categorías vacías simulado en el navegador, selección de categorías y guardado real de leche y empaques de 4/8 oz. Los fixtures temporales se eliminaron.
 - Evidencia: artifacts/catalog-verification.json. El login y readiness de Inventory respondieron HTTP 200 tras las pruebas.
+
+## Validación de Fase 2B, 2026-09-19
+
+**FASE 2B COMPLETADA**. Directorio de proveedores, asociaciones y panel verificados con PostgreSQL y Chromium reales. No se hicieron commits, push, merge ni despliegues externos.
+
+Inicio: rama feature/fase-1b-panel-auth, HEAD a33d556 (catálogo 2A), origin https://github.com/SttivGG/web-ambrosia.git y árbol limpio. No se cambió de rama ni se hizo pull. La línea base confirmó 255 pruebas (Turbo reutilizó caché; las 14 raíz se ejecutaron de nuevo), además de formato, lint, tipos y build con salida 0. Primero se instalaron las dependencias frozen y se generaron los cuatro clientes Prisma.
+
+Todos los comandos pnpm usaron npx --yes pnpm@10.34.5.
+
+| Comando                                                   | Resultado real                                            |
+| --------------------------------------------------------- | --------------------------------------------------------- |
+| install --frozen-lockfile                                 | Salida 0; lockfile intacto                                |
+| -r --if-present generate                                  | Salida 0; cuatro clientes propios                         |
+| format:check                                              | Salida 0                                                  |
+| lint                                                      | Salida 0                                                  |
+| typecheck                                                 | Salida 0                                                  |
+| test                                                      | Salida 0; 325 pruebas                                     |
+| build                                                     | Salida 0; ocho tareas compilables                         |
+| --filter @ambrosia/inventory-service exec prisma validate | Salida 0                                                  |
+| git diff --check                                          | Salida 0                                                  |
+| node scripts/prepare-suppliers.mjs --migrate              | Salida 0; respaldo, ensayo aislado, deploy y conservación |
+| Migrador: node scripts/prepare-suppliers-isolated.mjs     | Salida 0; repetido con el script ESM final                |
+| node scripts/verify-suppliers.mjs                         | Salida 0; seis grupos, también dentro del stack           |
+| test:stack                                                | Salida 0; 16 grupos, cierre a las 21:16:43 UTC            |
+| node scripts/verify-auth-boundary.mjs                     | Salida 0; tres comprobaciones                             |
+
+Se conservan las 255 pruebas anteriores y se agregan 70: 59 de contratos/servicio y 11 web (siete de cliente, cuatro DOM). Totales: Inventory 138, frontend 78, Identity 29, nest-auth 54, Production seis, Finance seis y raíz 14. Las pruebas con dobles verifican contratos y comportamiento unitario; no se cuentan como PostgreSQL o navegador reales. Algunas tareas reutilizaron la caché de Turbo.
+
+### Migración y conservación
+
+Docker estuvo detenido al retomar y se solicitó iniciarlo. Después se confirmó el contexto local desktop-linux, ocho contenedores saludables y solo gateway publicando 8080.
+
+Respaldo previo a la primera migración: artifacts/backups/inventory-before-2b-2026-09-19T14-31-33-666Z.dump, ignorado por Git. pg_restore pudo listar y decodificar el archivo completo. SHA-256: c13e1bfc3d29600d852269ad823643c6a5e5bdeb4097649e82a13f18086679e6. Las credenciales configuradas se utilizaron dentro del contenedor sin imprimirlas.
+
+El ensayo aislado aprobó instalación limpia, actualización desde 2A con categoría y artículo existentes y migrate deploy repetido. Se aplicó 202609190001_suppliers y se repitió deploy sin migraciones pendientes. La comparación completa de Category y CatalogItem antes/después fue idéntica y se repitió después de todas las suites: SHA-256 c5ae5048984896af9d6499f13892f59567eb6825fdb8a4f516d8a24d7cd58004. No se editaron migraciones anteriores ni se borraron datos existentes o volúmenes.
+
+### API, concurrencia y navegador
+
+La suite de proveedores aprobó validación estricta, unicidad también archivada, PATCH parcial, conservación de asociaciones omitidas, filtros, orden/paginación, estado y versiones obsoletas. PostgreSQL real verificó carreras de edición, asociación y archivado. Un trigger temporal limitado al UUID de un fixture provocó un fallo SQL después de escribir el proveedor; la transacción revirtió el registro y sus asociaciones completos. El trigger se eliminó en finally.
+
+Playwright verificó creación, errores por campo, selección paginada conservada, conflicto sin pérdida de notas o selecciones, comparación de campos y artículos, decisión explícita, cancelación, archivado/restauración y detalle de consulta. OWNER, ADMIN y OPERATOR escriben; VIEWER consulta y recibe rechazo al intentar escribir. Las pruebas DOM adicionales comprobaron bloqueo de doble envío y cierre durante guardado, errores asociados y confirmación de descarte.
+
+Se inspeccionaron capturas de 1440×1000, 375×812 y 812×375. Las comprobaciones no encontraron desbordamiento horizontal, errores JavaScript, tokens en URL/Web Storage ni peticiones del navegador a puertos internos. Tras traducir los nombres de identificación, se reconstruyó admin-web, se confirmó la traducción en el bundle servido y se repitieron los seis grupos de proveedores sobre la imagen final.
+
+test:stack conservó las regresiones de identidad, autenticación distribuida (11 grupos), catálogo (11 grupos) y panel. Aprobó independencia de servicios, caída y recuperación de PostgreSQL/NATS, doce accesos cruzados rechazados y persistencia PostgreSQL/JetStream. La suite de proveedores también reinició Inventory y comprobó persistencia del registro completo.
+
+### Cierre
+
+La revisión de exposición aprobó archivos, bundle y logs sin detectar claves privadas, JWT, cookies completas, contraseñas o CSRF. El respaldo y artifacts permanecen ignorados. El lockfile no cambió y no se agregaron dependencias, servicios ni puertos.
+
+Comprobación final a las 21:20:29 UTC: ocho contenedores running/healthy (admin-web, Identity, Inventory, Production, Finance, PostgreSQL, NATS y gateway). Solo gateway publica 8080 en IPv4/IPv6. Los jobs de provisión y migración terminaron con código 0. Cero proveedores, artículos, categorías, esquemas, triggers y usuarios temporales de 2B; stack restaurado.
+
+Durante el trabajo se corrigieron la admisión de fixtures fase2b, sincronización de búsqueda en Playwright, nombres accesibles de etiquetas/filtros, estilos de botones/casillas y traducción de identificaciones. El ejecutor aislado no iniciaba y se usó ejecución revisada; hubo interrupciones por cuota del revisor automático. Los intentos fallidos no cuentan como aprobados. No se eliminaron pruebas anteriores ni se redujeron sus aserciones; la prueba de migración de catálogo ahora espera las dos migraciones aplicadas.
+
+Evidencias: artifacts/phase2b-*.log, suppliers-migration.json, suppliers-verification.json, stack-verification.json, catalog-verification.json, distributed-auth-verification.json, ui-verification.json, auth-boundary-verification.json y phase2b-final-state.json dentro de artifacts, junto con suppliers-{1440,375,812}.png.
+
+No quedan verificaciones operativas pendientes. Los límites de 500 asociaciones, búsqueda contains, paginación por desplazamiento, revisión manual de conflictos y normalización sin verificación oficial están en suppliers.md y ADR-008.
+
+## DakaDesing con Steep — 2026-09-20
+
+Aplicado al frontend existente: acceso, navegación, inicio, catálogo y proveedores. SweetAlert2 11.26.25 reemplaza las tres llamadas a window.confirm para descartar cambios. Se mantienen formularios, permisos, conflictos y beforeunload nativo. Sistema visual y decisiones en [design.md](design.md).
+
+Validación final completada el 2026-09-20 a las 02:31 UTC:
+
+| Comando                        | Resultado                                     | Evidencia                          |
+| ------------------------------ | --------------------------------------------- | ---------------------------------- |
+| pnpm lint                      | Aprobado                                      | artifacts/dakadesing/lint.log      |
+| pnpm typecheck                 | Aprobado                                      | artifacts/dakadesing/typecheck.log |
+| pnpm test                      | Aprobado; 82 pruebas de frontend y 14 de raíz | artifacts/dakadesing/test.log      |
+| pnpm build                     | Aprobado                                      | artifacts/dakadesing/build.log     |
+| node scripts/verify-design.mjs | Cuatro grupos aprobados                       | artifacts/dakadesing/results.json  |
+
+Turbo reutilizó resultados de paquetes sin cambios; frontend se verificó nuevamente. Las pruebas de notificaciones comprueban conservación del DOM y foco tras ambas respuestas, y bloqueo de envíos mientras la confirmación está pendiente. Las pruebas de raíz se ejecutaron sin caché de Turbo.
+
+Playwright ejecutó la interfaz compilada con un servidor de identidad local ficticio y respuestas interceptadas: sin bases de datos ni credenciales reales. Login comprobado a 1440 y 375 px; inicio, catálogo y proveedores a 1440, 768 y 375 px, sin desbordamiento horizontal. SweetAlert2 comprobó foco inicial en Seguir editando, cancelación, Escape, preservación de valores y descarte sin solicitudes de mutación. No hubo errores JavaScript ni diálogos nativos inesperados. Capturas PNG en artifacts/dakadesing, ignorado por Git.
+
+Se inspeccionaron visualmente las capturas del inicio de escritorio, login de escritorio, catálogo móvil y confirmación móvil. Se corrigió el fondo de la confirmación y la codificación UTF-8 de textos durante la revisión; después se repitieron los cuatro comandos y la prueba visual. Los intentos previos fallidos no cuentan como aprobados.
+
+Límite: esta revisión visual utiliza fixtures y no reemplaza las verificaciones de integración con servicios reales registradas para fases anteriores. No se desplegó ni reconstruyó el stack Docker, no se alteraron bases de datos y no se realizaron commits ni push. El ejecutor visual usa el script start de Next.js; emite una advertencia por output standalone, aunque la ejecución local y sus aserciones completaron correctamente.

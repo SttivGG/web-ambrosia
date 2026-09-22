@@ -16,3 +16,4 @@ export interface EventEnvelopeV1<T> {
 
 export * from './auth-v1';
 export * from './catalog-v1';
+export * from './supplier-v1';

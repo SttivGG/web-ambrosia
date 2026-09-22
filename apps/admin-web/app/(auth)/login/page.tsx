@@ -23,8 +23,24 @@ export default async function LoginPage({
       <section className="login-brand">
         <p className="brand">ambrosia.</p>
         <p className="eyebrow">PRODUCCIÓN ARTESANAL</p>
-        <h2>Sistema de control de producción</h2>
-        <p>Todo listo para continuar con tu día.</p>
+        <h2>
+          El cuidado está
+          <br />
+          en cada <em>detalle.</em>
+        </h2>
+        <p className="login-intro">
+          Tu catálogo, tus proveedores y tu equipo.
+          <br />
+          Un lugar para organizar el día a día de Ambrosia.
+        </p>
+        <div className="login-note">
+          <span className="eyebrow">HECHO CON CUIDADO</span>
+          <p>
+            De los buenos ingredientes
+            <br />a una mejor organización.
+          </p>
+          <span>Sistema de control de producción</span>
+        </div>
       </section>
       <section className="auth-card">
         <LoginForm returnTo={safeReturnTo(query.returnTo)} notice={notice} />

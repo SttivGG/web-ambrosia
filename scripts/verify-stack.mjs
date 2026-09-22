@@ -183,6 +183,17 @@ try {
   pass(
     'Catálogo de artículos y categorías: API, migración, concurrencia y navegador',
   );
+  const suppliersVerification = spawnSync(
+    process.execPath,
+    ['scripts/verify-suppliers.mjs'],
+    { stdio: 'inherit', env: process.env },
+  );
+  assert.equal(
+    suppliersVerification.status,
+    0,
+    'Proveedores: PostgreSQL, permisos y Playwright',
+  );
+  pass('Proveedores: API, concurrencia, relaciones, detalle y navegador');
   const uiVerification = spawnSync(
     process.execPath,
     ['scripts/verify-ui.mjs'],
