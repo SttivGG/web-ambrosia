@@ -45,6 +45,9 @@ model Category {
  @@index([active, name, id])
 }
 model CatalogItem {
+ purchaseLines PurchaseLine[]
+ movements InventoryMovement[]
+ balance InventoryBalance?
  suppliers SupplierItem[]
  id String @id @default(uuid()) @db.Uuid
  sku String @unique @db.VarChar(40)
@@ -74,6 +77,7 @@ model CatalogItem {
 }
 
 model Supplier {
+ purchases Purchase[]
  id String @id @default(uuid()) @db.Uuid
  code String @unique @db.VarChar(40)
  name String @db.VarChar(160)
@@ -105,4 +109,82 @@ model SupplierItem {
  item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
  @@id([supplierId, itemId])
  @@index([itemId])
+}
+enum PurchaseStatus {
+ DRAFT
+ RECEIVED
+ CANCELLED
+}
+enum MovementType {
+ PURCHASE_IN
+ ADJUSTMENT_IN
+ ADJUSTMENT_OUT
+ REVERSAL
+}
+model Purchase {
+ id String @id @default(uuid()) @db.Uuid
+ supplierId String @db.Uuid
+ supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+ reference String @db.VarChar(80)
+ purchasedAt DateTime @db.Timestamptz(3)
+ status PurchaseStatus @default(DRAFT)
+ notes String? @db.VarChar(2000)
+ subtotal Decimal @db.Decimal(24,2)
+ total Decimal @db.Decimal(24,2)
+ currency String @default("COP") @db.VarChar(3)
+ version Int @default(1)
+ receivedAt DateTime? @db.Timestamptz(3)
+ cancelledAt DateTime? @db.Timestamptz(3)
+ cancellationReason String? @db.VarChar(500)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ lines PurchaseLine[]
+ @@unique([supplierId, reference])
+ @@index([status, purchasedAt, id])
+ @@index([purchasedAt, id])
+}
+model PurchaseLine {
+ id String @id @default(uuid()) @db.Uuid
+ purchaseId String @db.Uuid
+ purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+ itemId String @db.Uuid
+ item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+ quantity Decimal @db.Decimal(24,10)
+ unitCost Decimal @db.Decimal(24,2)
+ subtotal Decimal @db.Decimal(24,2)
+ baseUnit InventoryBaseUnit
+ movements InventoryMovement[]
+ @@unique([purchaseId, itemId])
+ @@index([itemId])
+}
+model InventoryBalance {
+ itemId String @id @db.Uuid
+ item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+ quantity Decimal @default(0) @db.Decimal(24,10)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+model InventoryMovement {
+ id String @id @default(uuid()) @db.Uuid
+ itemId String @db.Uuid
+ item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+ type MovementType
+ quantity Decimal @db.Decimal(24,10)
+ baseUnit InventoryBaseUnit
+ origin String @db.VarChar(20)
+ reference String @db.VarChar(80)
+ reason String @db.VarChar(500)
+ actorId String @db.Uuid
+ occurredAt DateTime @default(now()) @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ purchaseLineId String? @db.Uuid
+ purchaseLine PurchaseLine? @relation(fields: [purchaseLineId], references: [id], onDelete: Restrict)
+ reversesId String? @unique @db.Uuid
+ reverses InventoryMovement? @relation("reversal", fields: [reversesId], references: [id], onDelete: Restrict)
+ reversedBy InventoryMovement? @relation("reversal")
+ operationId String? @unique @db.Uuid
+ @@unique([purchaseLineId, type])
+ @@index([itemId, occurredAt, id])
+ @@index([type, occurredAt, id])
+ @@index([origin, occurredAt, id])
+ @@index([occurredAt, id])
 }

@@ -50,7 +50,10 @@ describe('identidad', () => {
     expect(claims.jti).toMatch(/^[0-9a-f-]{36}$/);
   });
   it('mapa de roles respeta permisos', () => {
-    expect(ROLE_PERMISSIONS.OWNER).toHaveLength(8);
+    expect(ROLE_PERMISSIONS.OWNER).toHaveLength(10);
+    expect(ROLE_PERMISSIONS.OPERATOR).toContain('purchases.write');
+    expect(ROLE_PERMISSIONS.VIEWER).toContain('purchases.read');
+    expect(ROLE_PERMISSIONS.VIEWER).not.toContain('purchases.write');
     expect(ROLE_PERMISSIONS.ADMIN).not.toContain('users.manage');
     expect(ROLE_PERMISSIONS.OPERATOR).not.toContain('finance.read');
     expect(ROLE_PERMISSIONS.VIEWER).not.toContain('inventory.write');

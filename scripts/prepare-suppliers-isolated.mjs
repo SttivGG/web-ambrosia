@@ -58,7 +58,7 @@ function migrate(schema, command, extra = []) {
           schema +
           '"."_prisma_migrations" WHERE finished_at IS NOT NULL',
       );
-      assert.equal(count.rows[0].n, 2);
+      assert.equal(count.rows[0].n, 3);
     }
     assert.deepEqual(
       (await db.query('SELECT row_to_json(t) AS value FROM "CatalogItem" t'))

@@ -352,3 +352,79 @@ Playwright ejecutó la interfaz compilada con un servidor de identidad local fic
 Se inspeccionaron visualmente las capturas del inicio de escritorio, login de escritorio, catálogo móvil y confirmación móvil. Se corrigió el fondo de la confirmación y la codificación UTF-8 de textos durante la revisión; después se repitieron los cuatro comandos y la prueba visual. Los intentos previos fallidos no cuentan como aprobados.
 
 Límite: esta revisión visual utiliza fixtures y no reemplaza las verificaciones de integración con servicios reales registradas para fases anteriores. No se desplegó ni reconstruyó el stack Docker, no se alteraron bases de datos y no se realizaron commits ni push. El ejecutor visual usa el script start de Next.js; emite una advertencia por output standalone, aunque la ejecución local y sus aserciones completaron correctamente.
+
+## Fase 3 — Compras e inventario, 2026-09-22
+
+Estado: COMPLETADA, Fases 3A y 3B. Cierre el 2026-09-22 a las 23:43 America/Bogota (2026-09-23T04:43Z).
+
+Inicio: rama main, HEAD 2ec5923, árbol limpio; se leyó README, arquitectura, ADR-001 a ADR-008, roadmap, entrega, validación, esquemas, contratos, gateway, Compose, pruebas y panel existentes. No se cambió de rama ni se ejecutó Git de escritura.
+
+### Migración, respaldo y datos
+
+SQL revisado: services/inventory-service/prisma/migrations/202609220001_purchases_inventory/migration.sql. Solo agrega Purchase, PurchaseLine, InventoryBalance, InventoryMovement, enums, índices, claves foráneas restrictivas y checks en tablas nuevas. No contiene DROP, TRUNCATE, conversión de columnas ni eliminación de datos.
+
+Comando aplicado: node scripts/prepare-purchases.mjs --migrate. Comprueba Docker local/PostgreSQL activo, genera pg_dump -Fc --no-owner --no-acl con la cuenta de Inventory dentro del contenedor, verifica pg_restore --list y pg_restore --file=/dev/null, registra SHA-256 y obtiene instantánea de Category, CatalogItem, Supplier y SupplierItem. No imprime credenciales.
+
+Respaldo anterior a la migración real: artifacts/backups/inventory-before-3-2026-09-22T18-18-08-081Z.dump. SHA-256 a0767922ffd33d957820e310859c06465aae2965f8a46e9db8f54cdeead4a1c2. El informe artifacts/purchases-migration.json confirma readable, isolated, migrated y preserved en true. Instantánea de datos originales: SHA-256 e49d78cafd9ce02a646247829fb0120e009e7394057eae02c1fed8c3931bdd9c.
+
+El migrador ensayó instalación limpia y actualización desde ambas migraciones 2A/2B en esquemas aleatorios de Inventory, repitió deploy y verificó conservación. Después de aprobar el ensayo aplicó migrate deploy al esquema operativo y lo repitió sin migraciones pendientes. Los esquemas temporales se eliminaron en finally. No se eliminaron volúmenes ni se usó migrate reset.
+
+### PostgreSQL real
+
+prepare-purchases-isolated.mjs ejecuta servicios compilados con Prisma propio sobre esquemas PostgreSQL reales. Pasó creación/edición de compra, cálculo decimal y dígitos por encima de MAX_SAFE_INTEGER; carreras de edición y doble recepción con un único éxito; carrera de dos descuentos de 8 sobre saldo 10 con saldo final 2; rechazo de reversión insuficiente; reposición, idempotencia de ajuste y reversión completa; cancelación de borrador sin movimientos; filtros/paginación; constraint contra saldo negativo y reconciliación.
+
+Un trigger temporal falla al insertar el movimiento del segundo artículo: ningún cambio de estado, movimiento o saldo persiste. Se elimina en finally. Esto valida rollback después de efectos parciales dentro de la transacción, no únicamente validación previa.
+
+### API y Playwright reales
+
+node scripts/verify-purchases.mjs aprobó siete grupos en ejecución independiente. No intercepta respuestas. Comprueba API por Nginx, validación, IDs, proveedor ausente, Decimal, referencias únicas, CSRF, versiones, estados, recepción repetida, unidad histórica protegida, ajustes, reversión, filtros, enlace inequívoco a compra/detalle y Swagger generado de contratos.
+
+Playwright inició sesión, seleccionó proveedor y artículo, guardó borrador, provocó una edición concurrente real, comprobó preservación de observaciones, comparó/adoptó versión, guardó, recibió, consultó existencias y abrió el movimiento. Después confirmó un ajuste y comprobó el nuevo saldo.
+
+OWNER, ADMIN y OPERATOR gestionaron compras; VIEWER consultó y recibió 403 en compras/ajustes, con controles ocultos en interfaz. Se reinició Inventory y se verificó persistencia y reconciliación. Cero errores JavaScript, tokens en URL/Web Storage o tráfico a puertos internos.
+
+Capturas reales 1440×1000, 375×812 y 812×375, sin desbordamiento horizontal. Se inspeccionaron escritorio, móvil y formulario de conflicto. Fixtures propios de compras, ledger, saldos, artículos, proveedores, categorías y usuarios se eliminaron. Evidencia: artifacts/purchases-verification.json y artifacts/phase3/stocks-*.png.
+
+### Matriz de cierre
+
+| Comando                                                                                      | Resultado                                              |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| pnpm install --frozen-lockfile                                                               | Aprobado; lockfile vigente                             |
+| pnpm lint                                                                                    | Aprobado; salida 0                                     |
+| pnpm typecheck                                                                               | Aprobado; salida 0                                     |
+| pnpm test                                                                                    | Aprobado; 389 pruebas: 329 heredadas y 60 nuevas       |
+| pnpm build                                                                                   | Aprobado; ocho tareas, incluidas las tres rutas nuevas |
+| pnpm format:check                                                                            | Aprobado; todos los archivos cumplen Prettier          |
+| pnpm --filter @ambrosia/inventory-service exec prisma validate                               | Aprobado                                               |
+| docker compose --env-file .env -f infrastructure/docker-compose.yml config --quiet           | Aprobado                                               |
+| docker compose --env-file .env -f infrastructure/docker-compose.yml exec -T gateway nginx -t | Aprobado                                               |
+| node scripts/prepare-purchases.mjs --migrate                                                 | Aprobado: respaldo, ensayo, migración y conservación   |
+| node scripts/verify-purchases.mjs                                                            | Aprobado: siete grupos reales                          |
+| pnpm test:stack                                                                              | Aprobado; 17 grupos, salida 0                          |
+| node scripts/verify-auth-boundary.mjs                                                        | Aprobado; tres comprobaciones                          |
+| node scripts/verify-purchases-state.mjs                                                      | Aprobado; integridad, limpieza y salud final           |
+| git diff --check                                                                             | Aprobado tras el cierre documental                     |
+
+Totales unitarios finales: Inventory 184, frontend 96, Identity 29, nest-auth 54, Production seis, Finance seis y raíz 14. Se agregaron 46 backend y 14 frontend, sin eliminar pruebas heredadas. Algunas tareas reutilizaron la caché de Turbo; no se cuentan ejecuciones repetidas como pruebas adicionales. Los grupos PostgreSQL/Playwright se registran por separado.
+
+### Incidencias corregidas y límites
+
+El primer ensayo PostgreSQL detectó que el DTO estricto del detalle recibía purchaseId interno. El procedimiento bloqueó la migración operativa; se corrigió la serialización, se añadió regresión unitaria y se repitió satisfactoriamente el ensayo. No se contabiliza el intento fallido como aprobado.
+
+Playwright detectó una etiqueta de textarea cuyo nombre incluía el texto escrito: el formulario conservaba datos, pero el selector exacto dejaba de encontrarlo. Se estabilizó su nombre accesible. También se impide mostrar acciones sobre listas obsoletas mientras se recargan y se probaron respuestas tardías. La repetición real pasó.
+
+El ejecutor aislado no inicia procesos; se utilizó ejecución revisada. Una revisión automática rechazó un comando por cuota y no se ejecutó; tras la instrucción de continuar se retomó desde los archivos existentes. Docker Desktop estuvo detenido y se inició desde su instalación vigente por usuario, sin eliminar datos. Se corrigieron referencias de entorno de lint y argumentos de formateo; los fallos iniciales no cuentan como validaciones aprobadas.
+
+No se hizo commit, push, merge, rebase ni despliegue a producción. Solo se reconstruyó el stack local autorizado para validación.
+
+### Cierre integral
+
+La ejecución final de pnpm test:stack terminó con salida 0 y 17 grupos aprobados, incluida la suite de siete grupos de compras sobre las imágenes finales. Conserva autenticación, catálogo, proveedores y panel; verifica caídas/recuperación de NATS y PostgreSQL, independencia de servicios, doce conexiones cruzadas rechazadas y persistencia PostgreSQL/JetStream. La especificación Swagger final incluye errores de autenticación y un ejemplo de creación con decimales como texto, comprobados por API real.
+
+La regresión heredada de proveedores esperaba window.confirm, sustituido por SweetAlert2 en el rediseño anterior. Se actualizó únicamente la prueba para comprobar Seguir editando, conservación del valor, Descartar cambios y ausencia de persistencia del descarte. La repetición integral aprobó sus seis grupos. Un intento posterior falló al ejecutar compose up; una reconstrucción directa terminó correctamente y la repetición completa pasó. No se atribuye una causa no comprobada ni se contabilizan esos intentos como éxitos.
+
+La revisión de seguridad aprobó exclusiones Git, fuentes, bundle y logs: sin claves privadas, JWT, cookies completas, contraseñas ni CSRF expuestos. El gateway rechazó con 413 una solicitud anónima de 17 000 bytes a compras. No se añadieron servicios ni puertos; las credenciales locales y respaldos permanecen ignorados.
+
+Comprobación final a las 2026-09-23T04:43:52.989Z: Category, CatalogItem, Supplier y SupplierItem idénticos a la instantánea previa, SHA-256 e49d78cafd9ce02a646247829fb0120e009e7394057eae02c1fed8c3931bdd9c. Cero compras/usuarios/esquemas temporales de Fase 3, ningún contenedor temporal en ejecución y ledger reconciliado. Ocho servicios running/healthy; solo gateway publica 8080 en IPv4/IPv6. No quedan verificaciones pendientes.
+
+Evidencias: artifacts/phase3/{lint,typecheck,test,build,format,stack,security,state}-final.log, compose-final.log y final-state.json; artifacts/{purchases-migration,purchases-verification,stack-verification,auth-boundary-verification}.json; capturas artifacts/phase3/stocks-{1440,375,812}.png. Los archivos de evidencia y el respaldo no están rastreados por Git. Los límites de alcance y operación están en purchases.md y ADR-009.

@@ -86,7 +86,35 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 Proveedores
               </Link>
             )}
-            {['Compras', 'Producción', 'Finanzas', 'Informes'].map((name) => (
+            {[
+              {
+                href: '/inventario/compras',
+                label: 'Compras',
+                permission: 'purchases.read' as const,
+              },
+              {
+                href: '/inventario/existencias',
+                label: 'Existencias',
+                permission: 'inventory.read' as const,
+              },
+              {
+                href: '/inventario/movimientos',
+                label: 'Movimientos',
+                permission: 'inventory.read' as const,
+              },
+            ]
+              .filter((link) => permissions.includes(link.permission))
+              .map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={pathname === link.href ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            {['Producción', 'Finanzas', 'Informes'].map((name) => (
               <span className="nav-coming" key={name}>
                 {name}
                 <small>Próximamente</small>

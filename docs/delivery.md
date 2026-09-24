@@ -224,3 +224,35 @@ Archivos nuevos: packages/contracts/src/supplier-v1.ts; services/inventory-servi
 No cambia el lockfile ni se agregan servicios, puertos o dependencias. No hay compras, precios, existencias ni eventos. Los comandos y el cierre operativo se registran por separado en validation.md. Sin commit ni push.
 
 Cierre operativo: 325 pruebas (255 anteriores y 70 nuevas), seis grupos reales de proveedores y 16 de test:stack aprobados. Respaldo verificado, migración aislada y local aprobadas, catálogo original conservado y fixtures eliminados. Ocho contenedores saludables, solo 8080 publicado; revisión de secretos aprobada. Las capturas de escritorio y móvil se inspeccionaron. El panel final se reconstruyó para servir los tipos de identificación en español y proveedores se verificó nuevamente. FASE 2B COMPLETADA; evidencia y comandos en validation.md.
+
+## Fase 3 — Compras e inventario
+
+Estado: COMPLETADA, Fases 3A y 3B. Matriz de validation.md aprobada.
+
+### Alcance y módulos
+
+3A incorpora Purchase y PurchaseLine con proveedor existente, referencia única por proveedor, fecha UTC, estados DRAFT/RECEIVED/CANCELLED, notas, importes COP Decimal y versión. 3B incorpora InventoryMovement como ledger y InventoryBalance como proyección transaccional. No hay eliminación de compras o movimientos por API.
+
+PurchasesService gestiona documentos y transiciones; StockService concentra movimientos y saldos. Controllers solo validan contratos, exigen permisos y pasan el actor JWT. No se comparten dominio ni clientes Prisma. Un cambio mínimo de catálogo bloquea modificaciones de unidad/seguimiento cuando existe historial.
+
+### API, permisos e interfaz
+
+/api/v1/purchases ofrece listado, detalle, creación, reemplazo de borrador, recepción y cancelación/reversión. /api/v1/inventory ofrece stocks, stocks/:id, movements y adjustments. Los endpoints, filtros y payloads están en [purchases.md](purchases.md).
+
+Identity añade purchases.read y purchases.write: OWNER/ADMIN/OPERATOR gestionan, VIEWER consulta. Existencias/movimientos reutilizan inventory.read; ajustes reutilizan inventory.write. Sesiones, RS256/JWKS, guards globales y CSRF conservan su arquitectura. Tokens anteriores requieren renovación para recibir permisos nuevos.
+
+El panel añade /inventario/compras, /inventario/existencias y /inventario/movimientos, navegación por permisos, selección de proveedor/artículos, importes calculados, comparación explícita de conflictos, confirmaciones y ajustes auditables. Fechas en America/Bogota y dinero COP. Reutiliza el sistema visual existente.
+
+### Integridad y decisiones
+
+Escrituras Serializable, bloqueos ordenados de artículos, compare-and-swap de versión y actualizaciones condicionadas de saldo. Movimientos/saldo/estado se confirman juntos. Unicidad por detalle/tipo y por operationId evita duplicados. Reversión conserva historial y exige saldo suficiente. No hay reintentos automáticos. ADR-009 detalla precisión, trade-offs y límites.
+
+Migración 202609220001_purchases_inventory aditiva: cuatro tablas, dos enums, claves restrictivas, índices de filtros y checks de importe, origen, estado y cantidades. Respaldo, ensayo aislado y conservación de los datos existentes se verifican antes de aplicarla.
+
+### Archivos y pruebas
+
+Archivos principales: services/inventory-service/src/purchases/_, su esquema y migración; packages/contracts/src/purchase-v1.ts; permisos de Identity; apps/admin-web/components/purchases/_, lib/api/purchases.ts y tres páginas; scripts/prepare-purchases*.mjs y verify-purchases.mjs. test:stack integra la nueva suite. Zod 4.6.5, ya usado en contracts, se declara explícitamente en Inventory para generar Swagger desde los mismos contratos; sin actualización de versión.
+
+46 pruebas unitarias backend y 14 frontend nuevas; se conserva la línea base de 329 pruebas existente al iniciar (325 de Fase 2B más cuatro del rediseño). La integración PostgreSQL comprueba carreras, rollback, constraints, idempotencia y reconciliación. La suite Playwright utiliza el stack real, sin interceptar respuestas. Resultados definitivos en validation.md.
+
+Cierre operativo: 389 pruebas aprobadas, siete grupos de compras con PostgreSQL/Playwright reales y 17 grupos de test:stack. Revisión de fuentes, bundle y logs sin secretos expuestos. A las 2026-09-23T04:43:52.989Z se comprobaron datos originales idénticos, ledger reconciliado, fixtures eliminados, ocho contenedores running/healthy y solo gateway:8080 publicado. Sin pendientes de validación ni cambios Git publicados.

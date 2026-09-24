@@ -49,7 +49,7 @@ async function bootstrap() {
       .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
-        'Catálogo interno v1: categorías y artículos. Lectura: inventory.read; mutaciones: inventory.write. Cookies requieren X-CSRF-Token y Origin autorizado; Bearer exclusivo no requiere CSRF. expectedVersion protege PATCH, archive y restore. Decimales como strings; capacidad nominal no implica peso neto.',
+        'Inventario v1: catálogo, proveedores, existencias y movimientos. Lectura: inventory.read; mutaciones: inventory.write. Compras: purchases.read/purchases.write; recepción y reversión atómicas, versionadas e idempotentes. Cookies requieren X-CSRF-Token y Origin autorizado; Bearer exclusivo no requiere CSRF. expectedVersion protege PATCH, archive y restore. Decimales como strings; capacidad nominal no implica peso neto.',
       )
       .build(),
   );

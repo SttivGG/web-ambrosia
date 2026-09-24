@@ -51,3 +51,7 @@ Category y CatalogItem pertenecen exclusivamente a Inventory y ambrosia_inventor
 ## Proveedores (Fase 2B)
 
 Supplier y SupplierItem amplían Inventory con un directorio y relaciones muchos-a-muchos con CatalogItem. Usan exclusivamente ambrosia_inventory, su cliente Prisma y contratos v1. Las mutaciones atómicas usan expectedVersion y Serializable; las nuevas asociaciones bloquean los artículos mientras comprueban actividad. Ver ADR-008. Los ocho servicios permanentes y el gateway conservan su configuración.
+
+## Compras y existencias (Fase 3)
+
+Inventory incorpora compras, detalles, ledger y saldo materializado dentro de su propia base. La recepción, reversión y ajustes son transacciones serializables; la proyección nunca se actualiza sin su movimiento. No se agregan servicios, accesos cruzados, eventos de negocio ni Outbox. purchases.read/write separa permisos de compras; inventory.read/write conserva inventario. Véase ADR-009 y purchases.md.

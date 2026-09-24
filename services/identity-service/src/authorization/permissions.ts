@@ -10,11 +10,19 @@ export const ROLE_PERMISSIONS: Record<RoleV1, readonly PermissionV1[]> = {
   OPERATOR: [
     'inventory.read',
     'inventory.write',
+    'purchases.read',
+    'purchases.write',
     'production.read',
     'production.write',
     'reports.read',
   ],
-  VIEWER: ['inventory.read', 'production.read', 'finance.read', 'reports.read'],
+  VIEWER: [
+    'purchases.read',
+    'inventory.read',
+    'production.read',
+    'finance.read',
+    'reports.read',
+  ],
 };
 export function publicUser(user: {
   id: string;

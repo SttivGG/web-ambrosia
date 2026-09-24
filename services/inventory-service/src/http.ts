@@ -1,3 +1,4 @@
+import { PurchaseError } from './purchases/domain';
 import { SupplierError } from './suppliers/domain';
 import { CatalogError } from './catalog/domain';
 import { AuthError, sendAuthError } from '@ambrosia/nest-auth';
@@ -33,7 +34,11 @@ export function correlation(req: Request, res: Response, next: NextFunction) {
 export class SafeExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
-    if (error instanceof CatalogError || error instanceof SupplierError) {
+    if (
+      error instanceof PurchaseError ||
+      error instanceof CatalogError ||
+      error instanceof SupplierError
+    ) {
       response.status(error.getStatus()).json({
         ...(error.getResponse() as object),
         requestId: response.getHeader('X-Request-ID'),

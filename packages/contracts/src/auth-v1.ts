@@ -3,6 +3,8 @@ export const PERMISSIONS_V1 = [
   'users.manage',
   'inventory.read',
   'inventory.write',
+  'purchases.read',
+  'purchases.write',
   'production.read',
   'production.write',
   'finance.read',

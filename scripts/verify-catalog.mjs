@@ -139,7 +139,7 @@ try {
     `const {spawnSync}=require('node:child_process');const schema=process.env.CATALOG_TEST_SCHEMA;if(!/^catalog_probe_[a-f0-9]{16}$/.test(schema))process.exit(1);const r=spawnSync('pnpm',['--filter','@ambrosia/inventory-service','exec','prisma','migrate','deploy'],{env:{...process.env,DATABASE_URL:process.env.DATABASE_URL+'?schema='+schema},stdio:'pipe'});process.exit(r.status??1);`,
   );
   inventory(
-    `if(!/^catalog_probe_[a-f0-9]{16}$/.test(input.schema))throw Error();const rows=await db.$queryRawUnsafe('SELECT count(*)::int AS count FROM "'+input.schema+'"."_prisma_migrations" WHERE finished_at IS NOT NULL');if(rows[0].count!==2)throw Error();`,
+    `if(!/^catalog_probe_[a-f0-9]{16}$/.test(input.schema))throw Error();const rows=await db.$queryRawUnsafe('SELECT count(*)::int AS count FROM "'+input.schema+'"."_prisma_migrations" WHERE finished_at IS NOT NULL');if(rows[0].count!==3)throw Error();`,
     { schema },
   );
   pass('Migración limpia en esquema PostgreSQL aislado y cuenta de Inventory');

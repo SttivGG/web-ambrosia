@@ -37,3 +37,7 @@ stack:up e infra:up incluyen el job. La aplicación no recibe credenciales admin
 ## Migración de proveedores
 
 202609190001_suppliers es aditiva. Para la base local con datos, prepare-suppliers.mjs --migrate genera y verifica un respaldo ignorado por Git, prueba instalación limpia y actualización desde 2A en esquemas aislados y después aplica migrate deploy dos veces. Compara categorías y artículos antes/después. Un fallo de respaldo o ensayo impide avanzar. No modifica usuarios, volúmenes ni migraciones anteriores. El informe queda en artifacts/suppliers-migration.json.
+
+## Migración de compras e inventario
+
+Antes de actualizar el stack local con datos, ejecutar node scripts/prepare-purchases.mjs --migrate. El procedimiento respalda todo Inventory, verifica el dump, ensaya instalación limpia/actualización 2B y pruebas de concurrencia en esquemas aislados, aplica deploy y compara categorías, artículos, proveedores y asociaciones. Evidencia: artifacts/purchases-migration.json. La migración es aditiva; no cambia puertos ni servicios permanentes. Tras actualizar Identity, renovar la sesión para adquirir purchases.read/write.

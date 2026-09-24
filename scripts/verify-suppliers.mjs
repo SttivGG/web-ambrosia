@@ -398,6 +398,20 @@ try {
   await page.getByRole('button', { name: 'Editar', exact: true }).click();
   await page.getByLabel('Notas', { exact: true }).fill('Descartar');
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page
+    .getByRole('heading', { name: '¿Descartar los cambios?', exact: true })
+    .waitFor();
+  await page
+    .getByRole('button', { name: 'Seguir editando', exact: true })
+    .click();
+  assert.equal(
+    await page.getByLabel('Notas', { exact: true }).inputValue(),
+    'Descartar',
+  );
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Descartar cambios', exact: true })
+    .click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.equal(
     (await api(context, 'suppliers/' + ui.id)).notes,

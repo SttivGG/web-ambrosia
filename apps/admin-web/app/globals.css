@@ -1218,3 +1218,82 @@ button:disabled {
 .swal2-container.ambrosia-alert-container {
   background: rgb(23 25 28 / 0.4);
 }
+
+.purchases .page-intro {
+  background: var(--accent);
+  padding: clamp(20px, 4vw, 40px);
+  border-radius: var(--radius-card);
+  margin-bottom: 24px;
+}
+.purchases .page-intro h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin: 8px 0;
+}
+.purchases fieldset {
+  min-width: 0;
+}
+.purchases label {
+  display: grid;
+  gap: 6px;
+}
+.purchases input,
+.purchases textarea,
+.purchases select {
+  width: 100%;
+  min-width: 0;
+}
+.purchases .catalog-wide {
+  grid-column: 1 / -1;
+}
+.purchases details {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.purchases summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.purchases li {
+  overflow-wrap: anywhere;
+}
+.purchases button,
+.purchases a {
+  min-height: 44px;
+}
+.purchases button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.purchase-line {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.purchase-line strong {
+  grid-column: 1 / -1;
+}
+.purchase-state {
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  display: inline-block;
+}
+.state-RECEIVED {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.state-CANCELLED {
+  background: var(--surface);
+}
+.purchases [role='alert'] {
+  padding: 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+}
+@media (max-width: 700px) {
+  .purchase-line {
+    grid-template-columns: 1fr;
+  }
+}

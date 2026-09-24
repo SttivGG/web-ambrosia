@@ -275,6 +275,18 @@ export class CatalogService {
       requireVersion(row.version, data.expectedVersion);
       const { expectedVersion, ...changes } = data;
       const merged = { ...itemDTO(row), ...changes };
+      if (
+        (merged.inventoryBaseUnit !== row.inventoryBaseUnit ||
+          merged.trackInventory !== row.trackInventory) &&
+        (await tx.inventoryMovement.count({ where: { itemId: id } }))
+      ) {
+        throw new CatalogError(
+          'INVENTORY_HISTORY_EXISTS',
+          409,
+          'La unidad y el seguimiento no pueden cambiar cuando existe historial.',
+          ['inventoryBaseUnit', 'trackInventory'],
+        );
+      }
       validateItem(merged);
       if (row.active) await this.activeCategory(tx, merged.categoryId);
       else await this.category(tx, merged.categoryId);

@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; producción, finanzas, compras y existencias quedan pendientes.
+Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; la Fase 3 incorpora compras, existencias, movimientos y ajustes. Producción y finanzas quedan pendientes.
 
 ## Arquitectura
 
@@ -205,3 +205,7 @@ Consultar [operación del catálogo](docs/catalog.md), [ADR-007](docs/adr/ADR-00
 El directorio /inventario/proveedores permite crear, consultar, editar, archivar y restaurar proveedores y asociarlos con artículos. VIEWER accede al detalle; inventory.write habilita cambios con control de versión. La identificación fiscal es opcional como pareja, sin verificación externa.
 
 Ver [guía de proveedores](docs/suppliers.md), [ADR-008](docs/adr/ADR-008-inventory-suppliers.md) y [validación](docs/validation.md). Antes de migrar datos locales, ejecutar node scripts/prepare-suppliers.mjs --migrate: respalda, verifica, ensaya en esquemas aislados y comprueba conservación del catálogo. node scripts/verify-suppliers.mjs ejecuta PostgreSQL y Playwright reales y forma parte de test:stack. No ejecutar suites de stack simultáneamente.
+
+## Compras e inventario (Fase 3)
+
+Las rutas /inventario/compras, /inventario/existencias y /inventario/movimientos integran borradores, recepción transaccional, reversión, consulta de saldo y ajustes auditables. Consultar [operación y migración](docs/purchases.md), [ADR-009](docs/adr/ADR-009-purchases-inventory-movements.md) y [estado de validación](docs/validation.md). No incluye producción, pagos ni eventos de negocio.

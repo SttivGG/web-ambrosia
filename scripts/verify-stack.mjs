@@ -194,6 +194,19 @@ try {
     'Proveedores: PostgreSQL, permisos y Playwright',
   );
   pass('Proveedores: API, concurrencia, relaciones, detalle y navegador');
+  const purchasesVerification = spawnSync(
+    process.execPath,
+    ['scripts/verify-purchases.mjs'],
+    { stdio: 'inherit' },
+  );
+  assert.equal(
+    purchasesVerification.status,
+    0,
+    'Compras e inventario: PostgreSQL y navegador reales',
+  );
+  pass(
+    'Compras e inventario: transacciones, concurrencia, permisos y Playwright reales',
+  );
   const uiVerification = spawnSync(
     process.execPath,
     ['scripts/verify-ui.mjs'],

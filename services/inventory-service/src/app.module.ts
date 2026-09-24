@@ -1,3 +1,7 @@
+import { PurchasesController } from './purchases/purchases.controller';
+import { PurchasesService } from './purchases/purchases.service';
+import { StockController } from './purchases/stock.controller';
+import { StockService } from './purchases/stock.service';
 import { SuppliersController } from './suppliers/suppliers.controller';
 import { SuppliersService } from './suppliers/suppliers.service';
 import { CatalogController } from './catalog/catalog.controller';
@@ -23,7 +27,20 @@ import { EventBusService } from './event-bus.service';
         }),
     }),
   ],
-  controllers: [HealthController, CatalogController, SuppliersController],
-  providers: [PrismaService, EventBusService, CatalogService, SuppliersService],
+  controllers: [
+    PurchasesController,
+    StockController,
+    HealthController,
+    CatalogController,
+    SuppliersController,
+  ],
+  providers: [
+    PurchasesService,
+    StockService,
+    PrismaService,
+    EventBusService,
+    CatalogService,
+    SuppliersService,
+  ],
 })
 export class AppModule {}
