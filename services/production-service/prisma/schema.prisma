@@ -1,4 +1,4 @@
-// Fase 0: deliberadamente sin modelos de negocio.
+// Fase 4: fórmulas, lotes y coordinación persistente propia.
 generator client {
  provider = "prisma-client"
  output = "../src/generated/prisma"
@@ -6,4 +6,74 @@ generator client {
 }
 datasource db {
  provider = "postgresql"
+}
+
+model Formula {
+ id String @id @default(uuid()) @db.Uuid
+ name String @db.VarChar(120)
+ active Boolean @default(true)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ revisions FormulaRevision[]
+ @@index([active, name, id])
+}
+model FormulaRevision {
+ id String @id @default(uuid()) @db.Uuid
+ formulaId String @db.Uuid
+ formula Formula @relation(fields: [formulaId], references: [id], onDelete: Restrict)
+ version Int
+ snapshot Json
+ orders ProductionOrder[]
+ @@unique([formulaId, version])
+}
+enum ProductionStatus {
+ DRAFT
+ IN_PROGRESS
+ COMPLETED
+ CANCELLED
+}
+enum ProductionOperationStatus {
+ PENDING
+ CONFIRMED
+ REJECTED
+}
+enum ProductionOperationKind {
+ CONSUME
+ REVERSE
+}
+model ProductionOrder {
+ id String @id @default(uuid()) @db.Uuid
+ batch String @unique @db.VarChar(80)
+ formulaRevisionId String @db.Uuid
+ formulaRevision FormulaRevision @relation(fields: [formulaRevisionId], references: [id], onDelete: Restrict)
+ quantity Decimal @db.Decimal(24,10)
+ ingredients Json
+ scheduledAt DateTime @db.Timestamptz(3)
+ notes String? @db.VarChar(2000)
+ status ProductionStatus @default(DRAFT)
+ version Int @default(1)
+ actorId String @db.Uuid
+ startedAt DateTime? @db.Timestamptz(3)
+ completedAt DateTime? @db.Timestamptz(3)
+ cancelledAt DateTime? @db.Timestamptz(3)
+ cancellationReason String? @db.VarChar(500)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ operations ProductionOperation[]
+ @@index([status, scheduledAt, id])
+}
+model ProductionOperation {
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+ kind ProductionOperationKind
+ status ProductionOperationStatus @default(PENDING)
+ payload Json
+ result Json?
+ error String? @db.VarChar(500)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ @@index([status, createdAt, id])
+ @@index([orderId, createdAt, id])
 }

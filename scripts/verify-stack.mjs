@@ -219,6 +219,13 @@ try {
   pass(
     'Panel protegido y Playwright real: login, recuperación, logout, contraseña y accesibilidad',
   );
+  const production = spawnSync(
+    process.execPath,
+    ['scripts/verify-production.mjs'],
+    { stdio: 'inherit' },
+  );
+  assert.equal(production.status, 0, 'Suite real de producción');
+  pass('Producción: coordinación recuperable, compensación, API y Playwright');
   compose('stop', 'finance-reporting-service');
   await http('/api/finance/health/live', 503);
   await http('/api/production/health/ready', 200);

@@ -236,7 +236,7 @@ async function integration(schema) {
       }),
     );
     const reconciliation = await prisma.$queryRawUnsafe(
-      `SELECT b."itemId" FROM "InventoryBalance" b LEFT JOIN "InventoryMovement" m ON m."itemId"=b."itemId" GROUP BY b."itemId",b.quantity HAVING b.quantity <> coalesce(sum(CASE WHEN m.type IN ('PURCHASE_IN','ADJUSTMENT_IN') THEN m.quantity ELSE -m.quantity END),0)`,
+      `SELECT b."itemId" FROM "InventoryBalance" b LEFT JOIN "InventoryMovement" m ON m."itemId"=b."itemId" GROUP BY b."itemId",b.quantity HAVING b.quantity <> coalesce(sum(CASE WHEN m.type IN ('PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN') THEN m.quantity ELSE -m.quantity END),0)`,
     );
     assert.equal(reconciliation.length, 0);
     console.log(
@@ -278,7 +278,7 @@ try {
             '"."_prisma_migrations" WHERE finished_at IS NOT NULL',
         )
       ).rows[0].n,
-      3,
+      migrations.length,
     );
   }
   assert.deepEqual(

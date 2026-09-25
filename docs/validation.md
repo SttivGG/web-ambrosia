@@ -428,3 +428,65 @@ La revisión de seguridad aprobó exclusiones Git, fuentes, bundle y logs: sin c
 Comprobación final a las 2026-09-23T04:43:52.989Z: Category, CatalogItem, Supplier y SupplierItem idénticos a la instantánea previa, SHA-256 e49d78cafd9ce02a646247829fb0120e009e7394057eae02c1fed8c3931bdd9c. Cero compras/usuarios/esquemas temporales de Fase 3, ningún contenedor temporal en ejecución y ledger reconciliado. Ocho servicios running/healthy; solo gateway publica 8080 en IPv4/IPv6. No quedan verificaciones pendientes.
 
 Evidencias: artifacts/phase3/{lint,typecheck,test,build,format,stack,security,state}-final.log, compose-final.log y final-state.json; artifacts/{purchases-migration,purchases-verification,stack-verification,auth-boundary-verification}.json; capturas artifacts/phase3/stocks-{1440,375,812}.png. Los archivos de evidencia y el respaldo no están rastreados por Git. Los límites de alcance y operación están en purchases.md y ADR-009.
+
+## Fase 4 — Producción completada (2026-09-24)
+
+Baseline: main e1a2db5cc2eb1902fb8737677636dc962fac5d41, árbol limpio; 389 pruebas heredadas aprobadas (375 sin caché y 14 de raíz), ocho contenedores saludables y solo gateway:8080 publicado. El usuario confirmó preservar ADR-002 y sustituir atomicidad global por coordinación persistente e idempotente.
+
+prepare-production.mjs --migrate aprobó respaldo legible de ambas bases, ensayos limpios y de actualización, deploy repetido y conservación exacta de filas/columnas preexistentes. PostgreSQL aislado aprobó solicitudes duplicadas, payload distinto, compensación idempotente, rechazos persistentes, rollback tras primera línea, dos consumos concurrentes de ocho sobre saldo diez, saldo final dos, constraint no negativo y reconciliación del ledger. Evidencia: artifacts/production-migration.json y artifacts/phase4-migration.log.
+
+### Matriz de cierre
+
+| Comando                                          | Resultado                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| pnpm install --frozen-lockfile                   | Aprobado; sin actualización de versiones                                         |
+| pnpm lint                                        | Aprobado                                                                         |
+| pnpm typecheck                                   | Aprobado                                                                         |
+| pnpm test                                        | Aprobado: 428 pruebas, 389 heredadas y 39 nuevas                                 |
+| pnpm build                                       | Aprobado: ocho tareas                                                            |
+| pnpm format:check                                | Aprobado                                                                         |
+| prisma validate en Inventory y Production        | Ambos esquemas válidos                                                           |
+| docker compose config --quiet y gateway nginx -t | Aprobados                                                                        |
+| node scripts/prepare-production.mjs --migrate    | Dos respaldos verificados, ensayos aislados, deploy repetido y datos conservados |
+| node scripts/verify-production.mjs               | Siete grupos aprobados con PostgreSQL, HTTP y Playwright reales                  |
+| pnpm test:stack                                  | 18 grupos aprobados, salida 0                                                    |
+| node scripts/verify-production-state.mjs         | Datos intactos, ledger reconciliado, limpieza y salud final                      |
+| node scripts/verify-auth-boundary.mjs            | Tres grupos aprobados; credencial técnica ausente de fuentes, bundle y logs      |
+| git diff --check                                 | Aprobado                                                                         |
+
+Totales unitarios: Inventory 191, Production 26, frontend 108, Identity 29, nest-auth 54, Finance seis y raíz 14. Son 27 pruebas backend y 12 frontend nuevas; no se eliminaron pruebas heredadas. Algunas tareas reutilizaron caché de Turbo; las repeticiones no suman pruebas. PostgreSQL/Playwright y test:stack se contabilizan por separado.
+
+### Migraciones y conservación
+
+Tres migraciones aditivas: Inventory 202609240001_production_types y 202609240002_production_operations; Production 202609240001_production. Las migraciones históricas permanecen intactas. Se verificó instalación limpia, actualización desde Fase 3 y repetición de deploy sin cambios adicionales.
+
+Respaldos locales ignorados por Git, comprobados mediante listado y decodificación completos:
+
+- artifacts/backups/inventory-before-phase4-1790262563954.dump; SHA-256 09a602b28fedc88e07cc83281217d64cdeae9b1132d820b7fa47e4bf961e5f5d.
+- artifacts/backups/production-before-phase4-1790262569645.dump; SHA-256 8a6df84cb4de91cb785332edf4fca8e8d4ebe71433571ec8c5743f24d6e5bc2b.
+
+La comparación posterior a la migración conservó todas las filas y columnas preexistentes. La comparación después de todas las suites, a las 2026-09-24T19:38:47.654Z, confirmó los datos de negocio de Inventory y Production idénticos a la instantánea anterior a las pruebas: SHA-256 b041e6716a324ebaf807988035cfbfdebc978a0cc25c7549a54487a45a908995. Sin fixtures ni esquemas temporales y con ledger reconciliado.
+
+### PostgreSQL y recuperación entre servicios
+
+Las pruebas ejecutan los servicios reales con sus propios clientes y bases. Cubren UUID duplicado concurrente, UUID equivalente en mayúsculas, reutilización con payload distinto, rechazo persistente antes del consumo y prevención de otro consumo del mismo lote con un UUID alternativo. Dos lotes compiten por ocho unidades sobre saldo diez: solo uno consume y el saldo final es dos. Un trigger que falla al insertar el segundo movimiento revierte operación, primera línea y todos los saldos. El constraint rechaza saldo negativo y el ledger coincide con la proyección.
+
+La suite de recuperación inyecta un fallo de red antes del consumo, pérdida de respuesta después del commit de Inventory y un fallo PostgreSQL al actualizar Production después de ese commit. El lote conserva una operación pendiente y un nuevo coordinador recupera el mismo UUID sin duplicar movimientos. También verifica pérdida de respuesta durante compensación, movimientos inversos trazables e idempotencia. No usa transacciones distribuidas.
+
+### API, interfaz y regresiones
+
+Playwright utiliza el gateway real, sin respuestas interceptadas. Crea fórmulas y lotes, provoca un conflicto de edición con una petición concurrente real, comprueba conservación de campos y comparación/adopción de versión, inicia producción y abre detalle/ledger. Valida compensación y cierre lógico desde la interfaz, revisiones históricas y desactivación/reactivación de fórmulas. Capturas de 1440, 768 y 375 píxeles sin desbordamiento horizontal; escritorio y móvil inspeccionados. Cero errores JavaScript.
+
+OWNER, ADMIN y OPERATOR escriben; VIEWER consulta y recibe 403 al escribir, con controles ocultos. Se comprueban anónimos, CSRF, Swagger protegido, rutas internas bloqueadas por gateway y persistencia tras reiniciar servicios. Los fixtures propios y usuarios se eliminan al terminar.
+
+La ejecución completa de test:stack finalizó a las 2026-09-24T19:25:02.267Z con 18 grupos aprobados. Conserva autenticación, catálogo, proveedores, compras y panel; incluye producción, independencia de servicios, caída/recuperación de NATS y PostgreSQL, doce conexiones cruzadas rechazadas y persistencia PostgreSQL/JetStream. Tras un último ajuste de texto en el selector de fórmulas, se repitieron typecheck y las 108 pruebas del panel, build, lint y la suite completa de siete grupos de Producción sobre su imagen final. No quedan verificaciones pendientes.
+
+### Seguridad, alcance y evidencias
+
+La revisión enfocada comprobó guards, permisos, CSRF, credencial técnica exclusiva, comparación de longitud en bytes y autenticación constante en tiempo, bloqueo de rutas internas y ausencia del secreto en fuentes, bundle y logs. No se realizó una auditoría externa. Se mantienen ocho servicios running/healthy y únicamente gateway:8080 publicado. production-migrate es un job temporal. No se comparten clientes Prisma ni se consultan bases ajenas desde los servicios.
+
+Los ensayos detectaron y se corrigieron la normalización de UUID, el retorno seguro a las rutas nuevas y la aplicación de estilos compartidos al panel. Las repeticiones pasaron; los intentos fallidos no se contabilizan como éxitos.
+
+Evidencias locales: artifacts/phase4-{install,lint,typecheck,test,build,format-check,migration,api-ui,stack,security,state}.log; artifacts/{production-migration,production-verification,stack-verification,auth-boundary-verification}.json; artifacts/phase4/{before-tests,final-state}.json y production-{1440,768,375}.png. Los artefactos, respaldos y secretos permanecen ignorados por Git.
+
+Fase 4 completada. Fase 5 permanece pendiente. Sin commit, push ni despliegue externo.

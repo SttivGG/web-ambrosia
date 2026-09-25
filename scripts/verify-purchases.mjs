@@ -587,7 +587,7 @@ try {
     '8',
   );
   inventory(
-    `const rows=await db.$queryRawUnsafe('SELECT b."itemId" FROM "InventoryBalance" b LEFT JOIN "InventoryMovement" m ON m."itemId"=b."itemId" GROUP BY b."itemId",b.quantity HAVING b.quantity <> coalesce(sum(CASE WHEN m.type IN (\\'PURCHASE_IN\\',\\'ADJUSTMENT_IN\\') THEN m.quantity ELSE -m.quantity END),0)');assert.equal(rows.length,0);`,
+    `const rows=await db.$queryRawUnsafe('SELECT b."itemId" FROM "InventoryBalance" b LEFT JOIN "InventoryMovement" m ON m."itemId"=b."itemId" GROUP BY b."itemId",b.quantity HAVING b.quantity <> coalesce(sum(CASE WHEN m.type IN (\\'PURCHASE_IN\\',\\'ADJUSTMENT_IN\\',\\'PRODUCTION_RETURN\\') THEN m.quantity ELSE -m.quantity END),0)');assert.equal(rows.length,0);`,
   );
   assert.deepEqual(errors, []);
   assert.equal(

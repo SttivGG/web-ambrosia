@@ -30,7 +30,7 @@ Health es independiente de futuros módulos: proceso vivo versus disponibilidad 
 
 Nginx usa DNS dinámico, sin dependencias de arranque que acoplen los servicios. Una respuesta inválida del upstream se convierte en 503 JSON. Los logs omiten cuerpos, consultas SQL, credenciales y query strings. No se confía en un ID de correlación arbitrario: solo ASCII limitado a 128 caracteres.
 
-La futura tienda y commerce-service tendrán sus propios ciclos de despliegue, datos y contratos; no existen todavía. HTTP interno se reserva para consultas síncronas, NATS para eventos. Moneda futura COP con Decimal; almacenamiento temporal UTC y presentación colombiana.
+La futura tienda y commerce-service tendrán sus propios ciclos de despliegue, datos y contratos; no existen todavía. HTTP interno atiende consultas síncronas y, desde Fase 4, la coordinación idempotente descrita en ADR-010. NATS se reserva para eventos futuros. Moneda futura COP con Decimal; almacenamiento temporal UTC y presentación colombiana.
 
 Fuentes técnicas: [Next.js standalone](https://nextjs.org/docs/app/api-reference/config/next-config-js/output), [Prisma generator](https://www.prisma.io/docs/orm/v7/prisma-schema/overview/generators), [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream).
 
@@ -55,3 +55,7 @@ Supplier y SupplierItem amplían Inventory con un directorio y relaciones muchos
 ## Compras y existencias (Fase 3)
 
 Inventory incorpora compras, detalles, ledger y saldo materializado dentro de su propia base. La recepción, reversión y ajustes son transacciones serializables; la proyección nunca se actualiza sin su movimiento. No se agregan servicios, accesos cruzados, eventos de negocio ni Outbox. purchases.read/write separa permisos de compras; inventory.read/write conserva inventario. Véase ADR-009 y purchases.md.
+
+## Producción (Fase 4)
+
+Production conserva fórmulas versionadas, lotes y coordinación persistente en su propia base. Inventory confirma consumo/compensación y ledger atómicamente en su base. HTTP técnico autenticado y privado comunica solicitudes idempotentes; recuperación periódica reconcilia respuestas perdidas. No hay atomicidad global, transacciones distribuidas ni acceso cruzado. Ver ADR-010 y production.md.

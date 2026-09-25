@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; la Fase 3 incorpora compras, existencias, movimientos y ajustes. Producción y finanzas quedan pendientes.
+Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; la Fase 3 incorpora compras, existencias, movimientos y ajustes. La Fase 4 incorpora producción con coordinación recuperable; finanzas permanece pendiente.
 
 ## Arquitectura
 
@@ -52,6 +52,7 @@ Generar material criptográfico local antes del primer arranque:
 
 ```sh
 pnpm auth:keys:generate
+node scripts/generate-production-key.mjs
 ```
 
 El comando crea `secrets/auth.local.env`, ignorado por Git, con RSA 3072 y el secreto CSRF. No imprime las claves. En un entorno real cargar `JWT_PRIVATE_KEY_BASE64`, `JWT_PUBLIC_KEY_BASE64` y `AUTH_CSRF_SECRET` desde el gestor de secretos; no copiar el archivo local. La regeneración con `--force` invalida tokens existentes y debe tratarse como una rotación planificada.
@@ -167,7 +168,7 @@ En PowerShell reemplazar `curl` por `curl.exe`. Los resultados de esta implement
 - `Configuración inválida`: revisar los nombres indicados, CORS como orígenes sin slash final, puertos válidos y credenciales. Los servicios no cargan `.env` implícitamente: `pnpm dev` centraliza la carga y Docker inyecta variables.
 - Readiness 503: comprobar PostgreSQL/NATS y URLs; liveness debe seguir en 200. Un servicio caído no impide que Nginx resuelva los demás.
 - Cambiar las claves en `.env` no modifica usuarios en un volumen PostgreSQL existente. Rotar contraseñas por SQL y actualizar URLs de forma coordinada; no borrar el volumen para resolverlo en entornos con datos.
-- Inventory e Identity aplican migraciones versionadas mediante `inventory-migrate` e `identity-migrate`. Producción y finanzas siguen sin modelos de negocio.
+- Inventory e Identity aplican migraciones versionadas mediante `inventory-migrate` e `identity-migrate`. Producción aplica sus modelos mediante production-migrate; finanzas sigue sin modelos de negocio.
 - Puerto ocupado: detener el proceso anterior o cambiar el puerto y regenerar el gateway local.
 - Scripts de inicialización Linux requieren LF; `.gitattributes` lo fija para futuros clones.
 - La skill UI disponible contenía referencias a scripts inexistentes. Se aplicaron directamente sus reglas de contraste, foco, estados con texto, tamaño táctil y responsive.
@@ -209,3 +210,7 @@ Ver [guía de proveedores](docs/suppliers.md), [ADR-008](docs/adr/ADR-008-invent
 ## Compras e inventario (Fase 3)
 
 Las rutas /inventario/compras, /inventario/existencias y /inventario/movimientos integran borradores, recepción transaccional, reversión, consulta de saldo y ajustes auditables. Consultar [operación y migración](docs/purchases.md), [ADR-009](docs/adr/ADR-009-purchases-inventory-movements.md) y [estado de validación](docs/validation.md). No incluye producción, pagos ni eventos de negocio.
+
+## Producción (Fase 4)
+
+Fórmulas versionadas en /produccion/formulas y lotes en /produccion/lotes. Inventory confirma consumo y compensaciones atómicamente; Production coordina con UUID persistentes, reintentos y reconciliación. No hay atomicidad global ni Fase 5. Antes de actualizar: node scripts/generate-production-key.mjs y node scripts/prepare-production.mjs --migrate. Ver [operación](docs/production.md), [ADR-010](docs/adr/ADR-010-production-coordination.md) y [validación](docs/validation.md).

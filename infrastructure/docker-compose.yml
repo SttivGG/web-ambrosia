@@ -75,6 +75,8 @@ services:
       context: ..
       dockerfile: services/inventory-service/Dockerfile
     restart: unless-stopped
+    env_file:
+      - ../secrets/production.local.env
     init: true
     environment:
       NODE_ENV: production
@@ -101,9 +103,12 @@ services:
       context: ..
       dockerfile: services/production-service/Dockerfile
     restart: unless-stopped
+    env_file:
+      - ../secrets/production.local.env
     init: true
     environment:
       NODE_ENV: production
+      INVENTORY_INTERNAL_URL: http://inventory-service:3001
       PORT: 3002
       DATABASE_URL: postgresql://production_user:${PRODUCTION_DB_PASSWORD:?required}@postgres:5432/ambrosia_production
       NATS_URL: nats://nats:4222
@@ -118,6 +123,21 @@ services:
       AUTH_JWKS_TIMEOUT_MS: ${AUTH_JWKS_TIMEOUT_MS:-2000}
       AUTH_JWKS_CACHE_TTL_SECONDS: ${AUTH_JWKS_CACHE_TTL_SECONDS:-300}
       AUTH_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?required}
+    depends_on:
+      production-migrate:
+        condition: service_completed_successfully
+    networks: [private]
+  production-migrate:
+    build:
+      context: ..
+      dockerfile: services/production-service/Dockerfile
+      target: migrator
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://production_user:${PRODUCTION_DB_PASSWORD:?required}@postgres:5432/ambrosia_production
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [private]
   finance-reporting-service:
     build:

@@ -114,7 +114,29 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   {link.label}
                 </Link>
               ))}
-            {['Producción', 'Finanzas', 'Informes'].map((name) => (
+            {permissions.includes('production.read') && (
+              <>
+                <Link
+                  href="/produccion/formulas"
+                  aria-current={
+                    pathname === '/produccion/formulas' ? 'page' : undefined
+                  }
+                  onClick={() => setOpen(false)}
+                >
+                  Fórmulas
+                </Link>
+                <Link
+                  href="/produccion/lotes"
+                  aria-current={
+                    pathname === '/produccion/lotes' ? 'page' : undefined
+                  }
+                  onClick={() => setOpen(false)}
+                >
+                  Producción
+                </Link>
+              </>
+            )}
+            {['Finanzas', 'Informes'].map((name) => (
               <span className="nav-coming" key={name}>
                 {name}
                 <small>Próximamente</small>

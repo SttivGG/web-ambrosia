@@ -49,7 +49,7 @@ async function bootstrap() {
       .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
-        'Fundación técnica de Ambrosia. Liveness del proceso y readiness de PostgreSQL y NATS JetStream.',
+        'Fórmulas versionadas, lotes y coordinación recuperable con Inventory. Sin atomicidad global. Consumo y ledger atómicos dentro de Inventory.',
       )
       .build(),
   );

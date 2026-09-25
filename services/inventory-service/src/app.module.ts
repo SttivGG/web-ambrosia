@@ -1,3 +1,5 @@
+import { ProductionInternalController } from './production/internal.controller';
+import { ProductionStockService } from './production/production-stock.service';
 import { PurchasesController } from './purchases/purchases.controller';
 import { PurchasesService } from './purchases/purchases.service';
 import { StockController } from './purchases/stock.controller';
@@ -28,6 +30,7 @@ import { EventBusService } from './event-bus.service';
     }),
   ],
   controllers: [
+    ProductionInternalController,
     PurchasesController,
     StockController,
     HealthController,
@@ -35,6 +38,7 @@ import { EventBusService } from './event-bus.service';
     SuppliersController,
   ],
   providers: [
+    ProductionStockService,
     PurchasesService,
     StockService,
     PrismaService,

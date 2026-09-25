@@ -120,6 +120,8 @@ enum MovementType {
  ADJUSTMENT_IN
  ADJUSTMENT_OUT
  REVERSAL
+ PRODUCTION_OUT
+ PRODUCTION_RETURN
 }
 model Purchase {
  id String @id @default(uuid()) @db.Uuid
@@ -164,6 +166,9 @@ model InventoryBalance {
  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }
 model InventoryMovement {
+ productionOperationId String? @db.Uuid
+ productionOperation ProductionStockOperation? @relation(fields: [productionOperationId], references: [id], onDelete: Restrict)
+ @@unique([productionOperationId, itemId])
  id String @id @default(uuid()) @db.Uuid
  itemId String @db.Uuid
  item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
@@ -187,4 +192,18 @@ model InventoryMovement {
  @@index([type, occurredAt, id])
  @@index([origin, occurredAt, id])
  @@index([occurredAt, id])
+}
+
+model ProductionStockOperation {
+ id String @id @db.Uuid
+ productionId String @db.Uuid
+ kind String @db.VarChar(10)
+ originalOperationId String? @unique @db.Uuid
+ original ProductionStockOperation? @relation("compensation", fields: [originalOperationId], references: [id], onDelete: Restrict)
+ compensation ProductionStockOperation? @relation("compensation")
+ payload Json
+ result Json
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ movements InventoryMovement[]
+ @@index([productionId, createdAt, id])
 }

@@ -10,7 +10,7 @@ Las aplicaciones no requieren que otro microservicio esté sano para arrancar. L
 
 Los puertos internos en contenedores son fijos; las variables de puertos de servicios corresponden al modo local. GATEWAY_PORT controla la publicación. POSTGRES_HOST/POSTGRES_PORT describen el host local y las URLs deben actualizarse al modificarlos. En contenedores el DNS es postgres:5432 y nats:4222.
 
-Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Inventory incorpora inventory-migrate con la misma separación entre migración y proceso HTTP. Producción y finanzas aún no tienen modelos de negocio.
+Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Inventory incorpora inventory-migrate con la misma separación entre migración y proceso HTTP. Producción usa production-migrate para sus modelos y finanzas aún no tiene modelos de negocio.
 
 Antes de operación real: TLS en el borde, un gestor externo para claves/secretos, rotación de claves, backups/restauración probados, límites de recursos y retención de logs. `AUTH_COOKIE_SECURE=true` es obligatorio con `NODE_ENV=production`. El rate limit de login está en memoria y requiere almacenamiento distribuido al desplegar múltiples réplicas. Las imágenes están fijadas por versión, no por digest; actualizar parches mediante revisión deliberada. NATS usa una identidad técnica común; definir ACL por servicio al establecer subjects de negocio.
 
@@ -41,3 +41,7 @@ stack:up e infra:up incluyen el job. La aplicación no recibe credenciales admin
 ## Migración de compras e inventario
 
 Antes de actualizar el stack local con datos, ejecutar node scripts/prepare-purchases.mjs --migrate. El procedimiento respalda todo Inventory, verifica el dump, ensaya instalación limpia/actualización 2B y pruebas de concurrencia en esquemas aislados, aplica deploy y compara categorías, artículos, proveedores y asociaciones. Evidencia: artifacts/purchases-migration.json. La migración es aditiva; no cambia puertos ni servicios permanentes. Tras actualizar Identity, renovar la sesión para adquirir purchases.read/write.
+
+## Despliegue de Producción
+
+Generar secrets/production.local.env con node scripts/generate-production-key.mjs antes de levantar el stack. Solo Inventory y Production reciben PRODUCTION_INVENTORY_TOKEN. Production usa INVENTORY_INTERNAL_URL en la red privada. El job temporal production-migrate aplica migraciones antes del servicio; permanecen ocho contenedores y solo gateway publica 8080. Antes de migrar datos locales ejecutar node scripts/prepare-production.mjs --migrate (respaldos verificables, ensayos aislados y comparación de datos). Ver production.md para recuperación y rotación.

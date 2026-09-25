@@ -9,6 +9,8 @@ COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile --store-dir=/pnpm/store
 RUN pnpm --filter @ambrosia/production-service... build
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm --filter @ambrosia/production-service deploy --prod --offline --store-dir=/pnpm/store /out
+FROM build AS migrator
+CMD ["pnpm", "--filter", "@ambrosia/production-service", "exec", "prisma", "migrate", "deploy"]
 FROM node:24.14.0-alpine AS runtime
 ENV NODE_ENV=production PORT=3002
 WORKDIR /app

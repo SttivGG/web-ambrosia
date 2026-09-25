@@ -44,7 +44,8 @@ type Entry = {
   baseUnit: InventoryBaseUnit;
   type: MovementType;
   quantity: string;
-  origin: 'PURCHASE' | 'MANUAL';
+  origin: 'PURCHASE' | 'MANUAL' | 'PRODUCTION';
+  productionOperationId?: string;
   reference: string;
   reason: string;
   actorId: string;
@@ -89,7 +90,9 @@ export class StockService {
   async record(tx: Prisma.TransactionClient, entry: Entry) {
     const quantity = new Prisma.Decimal(entry.quantity);
     const incoming =
-      entry.type === 'PURCHASE_IN' || entry.type === 'ADJUSTMENT_IN';
+      entry.type === 'PURCHASE_IN' ||
+      entry.type === 'ADJUSTMENT_IN' ||
+      entry.type === 'PRODUCTION_RETURN';
     await tx.inventoryBalance.upsert({
       where: { itemId: entry.itemId },
       create: { itemId: entry.itemId, quantity: '0' },

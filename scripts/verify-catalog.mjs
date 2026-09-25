@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { loadEnvFile } from 'node:process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { fixtureUser } from './auth-test-fixture.mjs';
 loadEnvFile('.env');
@@ -139,8 +139,13 @@ try {
     `const {spawnSync}=require('node:child_process');const schema=process.env.CATALOG_TEST_SCHEMA;if(!/^catalog_probe_[a-f0-9]{16}$/.test(schema))process.exit(1);const r=spawnSync('pnpm',['--filter','@ambrosia/inventory-service','exec','prisma','migrate','deploy'],{env:{...process.env,DATABASE_URL:process.env.DATABASE_URL+'?schema='+schema},stdio:'pipe'});process.exit(r.status??1);`,
   );
   inventory(
-    `if(!/^catalog_probe_[a-f0-9]{16}$/.test(input.schema))throw Error();const rows=await db.$queryRawUnsafe('SELECT count(*)::int AS count FROM "'+input.schema+'"."_prisma_migrations" WHERE finished_at IS NOT NULL');if(rows[0].count!==3)throw Error();`,
-    { schema },
+    `if(!/^catalog_probe_[a-f0-9]{16}$/.test(input.schema))throw Error();const rows=await db.$queryRawUnsafe('SELECT count(*)::int AS count FROM "'+input.schema+'"."_prisma_migrations" WHERE finished_at IS NOT NULL');if(rows[0].count!==input.expectedMigrations)throw Error();`,
+    {
+      schema,
+      expectedMigrations: readdirSync(
+        'services/inventory-service/prisma/migrations',
+      ).filter((n) => /^\d/.test(n)).length,
+    },
   );
   pass('Migración limpia en esquema PostgreSQL aislado y cuenta de Inventory');
   inventory(

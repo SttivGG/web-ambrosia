@@ -11,6 +11,8 @@ export const types = {
   ADJUSTMENT_IN: 'Ajuste positivo',
   ADJUSTMENT_OUT: 'Ajuste negativo',
   REVERSAL: 'Reversión',
+  PRODUCTION_OUT: 'Consumo de producción',
+  PRODUCTION_RETURN: 'Devolución de producción',
 };
 export const units = { UNIT: 'unidades', GRAM: 'g', MILLILITER: 'ml' };
 export const date = (value: string) =>

@@ -55,7 +55,7 @@ const clientFiles = files(resolve('apps/admin-web/.next/static')).filter(
 assert.ok(clientFiles.length > 0, 'Build de Next requerido');
 const client = clientFiles.map((path) => readFileSync(path, 'utf8')).join('\n');
 assert.ok(
-  !/IDENTITY_INTERNAL_URL|identity-service:3004|IDENTITY_DATABASE_URL|JWT_PRIVATE_KEY_BASE64|AUTH_CSRF_SECRET/.test(
+  !/PRODUCTION_INVENTORY_TOKEN|INVENTORY_INTERNAL_URL|IDENTITY_INTERNAL_URL|identity-service:3004|IDENTITY_DATABASE_URL|JWT_PRIVATE_KEY_BASE64|AUTH_CSRF_SECRET/.test(
     client,
   ),
   'Bundle sin variables privadas',
@@ -113,3 +113,17 @@ writeFileSync(
   'artifacts/auth-boundary-verification.json',
   JSON.stringify(reports, null, 2),
 );
+
+const coordinationFile = resolve('secrets/production.local.env');
+if (existsSync(coordinationFile)) {
+  const token = readFileSync(coordinationFile, 'utf8')
+    .match(/^PRODUCTION_INVENTORY_TOKEN=(.+)$/m)?.[1]
+    ?.trim();
+  assert.ok(token && token.length >= 64);
+  assert.ok(
+    !source.includes(token) &&
+      !client.includes(token) &&
+      !output.includes(token),
+    'Credencial técnica fuera de fuentes, bundle y logs',
+  );
+}

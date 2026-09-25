@@ -51,7 +51,7 @@ assert.equal(
 );
 assert.equal(
   sql(
-    `WITH ledger AS (SELECT "itemId",sum(CASE WHEN type IN ('PURCHASE_IN','ADJUSTMENT_IN') THEN quantity ELSE -quantity END) q FROM "InventoryMovement" GROUP BY "itemId") SELECT count(*) FROM ledger l FULL JOIN "InventoryBalance" b ON l."itemId"=b."itemId" WHERE coalesce(l.q,0) <> coalesce(b.quantity,0) OR b."itemId" IS NULL;`,
+    `WITH ledger AS (SELECT "itemId",sum(CASE WHEN type IN ('PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN') THEN quantity ELSE -quantity END) q FROM "InventoryMovement" GROUP BY "itemId") SELECT count(*) FROM ledger l FULL JOIN "InventoryBalance" b ON l."itemId"=b."itemId" WHERE coalesce(l.q,0) <> coalesce(b.quantity,0) OR b."itemId" IS NULL;`,
   ).trim(),
   '0',
 );

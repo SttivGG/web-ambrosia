@@ -402,6 +402,7 @@ export function Movements({ initialItemId = '' }: { initialItemId?: string }) {
             <option value="">Todos</option>
             <option value="PURCHASE">Compra</option>
             <option value="MANUAL">Ajuste manual</option>
+            <option value="PRODUCTION">Producción</option>
           </select>
         </label>
         <label>
@@ -436,7 +437,9 @@ export function Movements({ initialItemId = '' }: { initialItemId?: string }) {
             <ul className="supplier-list">
               {result.data?.data.map((r) => {
                 const incoming =
-                  r.type === 'PURCHASE_IN' || r.type === 'ADJUSTMENT_IN';
+                  r.type === 'PURCHASE_IN' ||
+                  r.type === 'ADJUSTMENT_IN' ||
+                  r.type === 'PRODUCTION_RETURN';
                 return (
                   <li key={r.id}>
                     <div>
@@ -453,8 +456,12 @@ export function Movements({ initialItemId = '' }: { initialItemId?: string }) {
                       </p>
                       <p>
                         Origen:{' '}
-                        {r.origin === 'PURCHASE' ? 'Compra' : 'Ajuste manual'} ·
-                        Referencia: {r.reference}
+                        {r.origin === 'PURCHASE'
+                          ? 'Compra'
+                          : r.origin === 'PRODUCTION'
+                            ? 'Producción'
+                            : 'Ajuste manual'}{' '}
+                        · Referencia: {r.reference}
                       </p>
                       <p>Motivo: {r.reason}</p>
                       <details>

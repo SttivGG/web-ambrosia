@@ -1,3 +1,6 @@
+import { ProductionController } from './production/production.controller';
+import { ProductionService } from './production/production.service';
+import { InventoryClient } from './production/inventory.client';
 import { NestAuthModule, authOptions } from '@ambrosia/nest-auth';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -19,7 +22,12 @@ import { EventBusService } from './event-bus.service';
         }),
     }),
   ],
-  controllers: [HealthController],
-  providers: [PrismaService, EventBusService],
+  controllers: [HealthController, ProductionController],
+  providers: [
+    PrismaService,
+    EventBusService,
+    ProductionService,
+    InventoryClient,
+  ],
 })
 export class AppModule {}

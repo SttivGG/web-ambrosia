@@ -1,3 +1,8 @@
+try {
+  process.loadEnvFile('secrets/production.local.env');
+} catch {
+  throw new Error('Ejecutar node scripts/generate-production-key.mjs.');
+}
 import { loadEnvFile } from 'node:process';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
