@@ -7,18 +7,25 @@ import {
   productionInputV1Schema,
   productionV1Schema,
   productionListV1Schema,
+  productionYieldInputV1Schema,
+  packagingInputV1Schema,
   itemListV1Schema,
   catalogItemV1Schema,
   type FormulaV1,
   type ProductionV1,
   type FormulaInputV1,
+  type CatalogItemV1,
 } from '@ambrosia/contracts';
 import { useSession } from '../auth/session-provider';
 import {
   productionRequest,
   ProductionRequestError,
 } from '../../lib/api/production';
-import { confirmDiscard } from '../../lib/ui/notifications';
+import {
+  confirmDiscard,
+  confirmInventoryEffect,
+  notifySuccess,
+} from '../../lib/ui/notifications';
 import {
   Modal,
   ErrorBox,
@@ -39,6 +46,12 @@ const operationStates = {
   PENDING: 'Pendiente de confirmación',
   CONFIRMED: 'Confirmada',
   REJECTED: 'Rechazada',
+};
+const localNow = () => {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 };
 function useProductionList<T>(
   path: string,
@@ -138,6 +151,61 @@ function ItemPicker({
             change={setPage}
           />
         </>
+      )}
+    </fieldset>
+  );
+}
+
+function StockItemPicker({
+  itemType,
+  title,
+  exclude = [],
+  choose,
+}: {
+  itemType: 'FINISHED_PRODUCT' | 'PACKAGING';
+  title: string;
+  exclude?: string[];
+  choose(item: CatalogItemV1): void;
+}) {
+  const [search, setSearch] = useState('');
+  const list = useList(
+    'catalog/items?active=true&page=1&pageSize=100&itemType=' +
+      itemType +
+      '&search=' +
+      encodeURIComponent(search),
+    itemListV1Schema,
+  );
+  return (
+    <fieldset>
+      <legend>{title}</legend>
+      <label>
+        Buscar
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+      <ErrorBox text={list.error} />
+      {list.loading ? (
+        <p role="status">Buscando artículos…</p>
+      ) : (
+        <ul>
+          {list.data?.data
+            .filter((item) => !exclude.includes(item.id))
+            .map((item) => (
+              <li key={item.id}>
+                <button type="button" onClick={() => choose(item)}>
+                  {item.name} · {units[item.inventoryBaseUnit]}
+                  {item.nominalCapacityValue
+                    ? ' · ' +
+                      item.nominalCapacityValue +
+                      ' ' +
+                      item.nominalCapacityUnit
+                    : ''}
+                </button>
+              </li>
+            ))}
+        </ul>
       )}
     </fieldset>
   );
@@ -552,6 +620,379 @@ function OrderEditor({
     </Modal>
   );
 }
+function YieldEditor({
+  row,
+  close,
+  done,
+}: {
+  row: ProductionV1;
+  close(): void;
+  done(): void;
+}) {
+  const [actualQuantity, setActual] = useState(''),
+    [wasteQuantity, setWaste] = useState('0'),
+    [wasteReason, setWasteReason] = useState(''),
+    [occurredAt, setOccurredAt] = useState(localNow()),
+    [notes, setNotes] = useState(''),
+    [version, setVersion] = useState(row.version),
+    [current, setCurrent] = useState<ProductionV1 | null>(null),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false),
+    form = useRef<HTMLFormElement>(null),
+    lock = useRef(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (lock.current) return;
+    const parsed = productionYieldInputV1Schema.safeParse({
+      actualQuantity,
+      wasteQuantity,
+      wasteReason: wasteReason || null,
+      occurredAt: new Date(occurredAt).toISOString(),
+      notes: notes || null,
+      expectedVersion: version,
+    });
+    if (!parsed.success) {
+      setError(
+        'Revisa cantidad real, merma, motivo y fecha. Usa punto decimal.',
+      );
+      return;
+    }
+    if (
+      !(await confirmInventoryEffect(
+        '¿Confirmar rendimiento?',
+        'Inventory ingresará la cantidad real como producto terminado a granel. La operación quedará auditada.',
+        form.current?.closest('dialog'),
+      ))
+    )
+      return;
+    lock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await productionRequest(
+        'orders/' + row.id + '/yield',
+        productionV1Schema,
+        'POST',
+        parsed.data,
+      );
+      done();
+      await notifySuccess(
+        'El rendimiento y la entrada de producto a granel quedaron confirmados.',
+      );
+    } catch (caught) {
+      setError(message(caught));
+      if (
+        caught instanceof ProductionRequestError &&
+        caught.code === 'CONCURRENT_MODIFICATION'
+      )
+        try {
+          setCurrent(
+            await productionRequest('orders/' + row.id, productionV1Schema),
+          );
+        } catch {}
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={'Registrar rendimiento · ' + row.batch} close={close}>
+      <form ref={form} onSubmit={submit}>
+        <ErrorBox text={error} />
+        <p>
+          Planificado: {row.quantity} {units[row.formula.baseUnit]}. La entrada
+          a Inventory se confirma con un UUID persistido.
+        </p>
+        <fieldset disabled={busy}>
+          <label>
+            Cantidad real obtenida
+            <input
+              required
+              inputMode="decimal"
+              value={actualQuantity}
+              onChange={(event) => setActual(event.target.value)}
+            />
+          </label>
+          <label>
+            Merma real
+            <input
+              required
+              inputMode="decimal"
+              value={wasteQuantity}
+              onChange={(event) => setWaste(event.target.value)}
+            />
+          </label>
+          {wasteQuantity !== '0' && (
+            <label>
+              Motivo de merma
+              <textarea
+                required
+                minLength={3}
+                maxLength={500}
+                value={wasteReason}
+                onChange={(event) => setWasteReason(event.target.value)}
+              />
+            </label>
+          )}
+          <label>
+            Fecha y hora
+            <input
+              required
+              type="datetime-local"
+              value={occurredAt}
+              onChange={(event) => setOccurredAt(event.target.value)}
+            />
+          </label>
+          <label>
+            Observaciones
+            <textarea
+              maxLength={2000}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </label>
+          {current && (
+            <section role="status">
+              <p>
+                El lote está ahora en versión {current.version}. Tus campos se
+                conservan.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setVersion(current.version);
+                  setCurrent(null);
+                }}
+              >
+                Comparar y adoptar versión actual
+              </button>
+            </section>
+          )}
+          <div className="form-actions">
+            <button type="button" onClick={close}>
+              Volver
+            </button>
+            <button disabled={busy}>
+              {busy ? 'Confirmando…' : 'Confirmar rendimiento'}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </Modal>
+  );
+}
+
+function PackagingEditor({
+  row,
+  close,
+  done,
+}: {
+  row: ProductionV1;
+  close(): void;
+  done(): void;
+}) {
+  const [presentation, setPresentation] = useState<CatalogItemV1 | null>(null),
+    [unitsPackaged, setUnitsPackaged] = useState(''),
+    [productQuantityPerUnit, setPerUnit] = useState(''),
+    [materials, setMaterials] = useState<
+      { itemId: string; name: string; quantity: string }[]
+    >([]),
+    [occurredAt, setOccurredAt] = useState(localNow()),
+    [notes, setNotes] = useState(''),
+    [version, setVersion] = useState(row.version),
+    [current, setCurrent] = useState<ProductionV1 | null>(null),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false),
+    form = useRef<HTMLFormElement>(null),
+    lock = useRef(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (lock.current) return;
+    const parsed = packagingInputV1Schema.safeParse({
+      orderId: row.id,
+      presentationProductId: presentation?.id ?? '',
+      unitsPackaged,
+      productQuantityPerUnit,
+      materials: materials.map(({ itemId, quantity }) => ({
+        itemId,
+        quantity,
+      })),
+      occurredAt: new Date(occurredAt).toISOString(),
+      notes: notes || null,
+      expectedVersion: version,
+    });
+    if (!parsed.success) {
+      setError(
+        'Selecciona la presentación y al menos un material; revisa unidades, contenido y cantidades.',
+      );
+      return;
+    }
+    if (
+      !(await confirmInventoryEffect(
+        '¿Confirmar envasado?',
+        'Inventory descontará producto a granel y materiales, y registrará las unidades vendibles en una sola transacción.',
+        form.current?.closest('dialog'),
+      ))
+    )
+      return;
+    lock.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await productionRequest(
+        'packaging',
+        productionV1Schema,
+        'POST',
+        parsed.data,
+      );
+      done();
+      await notifySuccess(
+        'Inventory confirmó el consumo y la entrada de unidades envasadas.',
+      );
+    } catch (caught) {
+      setError(message(caught));
+      if (
+        caught instanceof ProductionRequestError &&
+        caught.code === 'CONCURRENT_MODIFICATION'
+      )
+        try {
+          setCurrent(
+            await productionRequest('orders/' + row.id, productionV1Schema),
+          );
+        } catch {}
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={'Envasar lote · ' + row.batch} close={close}>
+      <form ref={form} onSubmit={submit}>
+        <ErrorBox text={error} />
+        <p>
+          Disponible según rendimiento del lote: {row.yield?.actualQuantity}{' '}
+          {row.yield ? units[row.yield.baseUnit] : ''}. El contenido por unidad
+          debe coincidir dimensionalmente con la capacidad nominal del producto
+          vendible; no se infiere del recipiente.
+        </p>
+        <fieldset disabled={busy}>
+          <StockItemPicker
+            itemType="FINISHED_PRODUCT"
+            title="Presentación vendible"
+            exclude={[row.formula.productId]}
+            choose={setPresentation}
+          />
+          {presentation && <p>Seleccionada: {presentation.name}</p>}
+          <label>
+            Unidades envasadas
+            <input
+              required
+              inputMode="numeric"
+              value={unitsPackaged}
+              onChange={(event) => setUnitsPackaged(event.target.value)}
+            />
+          </label>
+          <label>
+            Cantidad de producto a granel por unidad
+            <input
+              required
+              inputMode="decimal"
+              value={productQuantityPerUnit}
+              onChange={(event) => setPerUnit(event.target.value)}
+            />
+          </label>
+          <StockItemPicker
+            itemType="PACKAGING"
+            title="Agregar material de empaque"
+            exclude={materials.map((material) => material.itemId)}
+            choose={(item) =>
+              setMaterials((currentMaterials) => [
+                ...currentMaterials,
+                { itemId: item.id, name: item.name, quantity: '1' },
+              ])
+            }
+          />
+          {materials.map((material, index) => (
+            <div className="form-actions" key={material.itemId}>
+              <label>
+                {material.name} · cantidad total
+                <input
+                  required
+                  inputMode="decimal"
+                  value={material.quantity}
+                  onChange={(event) =>
+                    setMaterials((currentMaterials) =>
+                      currentMaterials.map((candidate, candidateIndex) =>
+                        candidateIndex === index
+                          ? { ...candidate, quantity: event.target.value }
+                          : candidate,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() =>
+                  setMaterials((currentMaterials) =>
+                    currentMaterials.filter(
+                      (candidate) => candidate.itemId !== material.itemId,
+                    ),
+                  )
+                }
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+          <label>
+            Fecha y hora
+            <input
+              required
+              type="datetime-local"
+              value={occurredAt}
+              onChange={(event) => setOccurredAt(event.target.value)}
+            />
+          </label>
+          <label>
+            Observaciones
+            <textarea
+              maxLength={2000}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </label>
+          {current && (
+            <section role="status">
+              <p>
+                El lote está ahora en versión {current.version}. Tus campos se
+                conservan.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setVersion(current.version);
+                  setCurrent(null);
+                }}
+              >
+                Comparar y adoptar versión actual
+              </button>
+            </section>
+          )}
+          <div className="form-actions">
+            <button type="button" onClick={close}>
+              Volver
+            </button>
+            <button disabled={busy}>
+              {busy ? 'Confirmando…' : 'Confirmar envasado'}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </Modal>
+  );
+}
+
 function Detail({ row, close }: { row: ProductionV1; close(): void }) {
   return (
     <Modal title={'Producción ' + row.batch} close={close}>
@@ -570,6 +1011,58 @@ function Detail({ row, close }: { row: ProductionV1; close(): void }) {
           planificada: {row.quantity} {units[row.formula.baseUnit]}.
         </p>
       )}
+      <h3>Rendimiento</h3>
+      {!row.yield ? (
+        <p>No se ha registrado el rendimiento físico.</p>
+      ) : (
+        <section>
+          <p>
+            {operationStates[row.yield.status]} · real{' '}
+            {row.yield.actualQuantity} {units[row.yield.baseUnit]} · planificado{' '}
+            {row.yield.plannedQuantity} · diferencia{' '}
+            {row.yield.differenceQuantity}.
+          </p>
+          <p>
+            Rendimiento {row.yield.yieldPercentage}% · merma{' '}
+            {row.yield.wasteQuantity} ({row.yield.wastePercentage}%).
+            {row.yield.wasteReason ? ' ' + row.yield.wasteReason : ''}
+          </p>
+          <p>
+            Fecha: {date(row.yield.occurredAt)} · responsable:{' '}
+            {row.yield.actorId} · operación: {row.yield.operationId}
+          </p>
+        </section>
+      )}
+      <h3>Envasado</h3>
+      {!row.packagingOperations.length && (
+        <p>No se han registrado operaciones de envasado.</p>
+      )}
+      {row.packagingOperations.map((packaging) => (
+        <section key={packaging.id}>
+          <h4>
+            {operationStates[packaging.status]} · {packaging.unitsPackaged}{' '}
+            unidades
+          </h4>
+          <p>
+            Presentación: <ItemName id={packaging.presentationProductId} /> ·
+            producto utilizado: {packaging.productQuantityUsed}{' '}
+            {units[packaging.baseUnit]} ({packaging.productQuantityPerUnit} por
+            unidad).
+          </p>
+          <ul>
+            {packaging.materials.map((material) => (
+              <li key={material.itemId}>
+                <ItemName id={material.itemId} />: {material.quantity}{' '}
+                {units[material.baseUnit]}
+              </li>
+            ))}
+          </ul>
+          <p>
+            {date(packaging.occurredAt)} · responsable: {packaging.actorId} ·
+            operación: {packaging.operationId}
+          </p>
+        </section>
+      ))}
       <h3>Insumos previstos</h3>
       <ul>
         {row.ingredients.map((l) => (
@@ -583,8 +1076,15 @@ function Detail({ row, close }: { row: ProductionV1; close(): void }) {
       {row.operations.map((o) => (
         <section key={o.id}>
           <h4>
-            {o.kind === 'CONSUME' ? 'Consumo' : 'Compensación'} ·{' '}
-            {operationStates[o.status]}
+            {
+              {
+                CONSUME: 'Consumo de insumos',
+                REVERSE: 'Compensación',
+                YIELD: 'Entrada de rendimiento',
+                PACKAGE: 'Envasado',
+              }[o.kind]
+            }{' '}
+            · {operationStates[o.status]}
           </h4>
           <p>
             Operación: {o.id} · {date(o.createdAt)}
@@ -600,7 +1100,17 @@ function Detail({ row, close }: { row: ProductionV1; close(): void }) {
             {o.result?.movements.map((m) => (
               <li key={m.id}>
                 {m.item.name}: {m.quantity} {units[m.baseUnit]} ·{' '}
-                {m.type === 'PRODUCTION_OUT' ? 'Salida' : 'Devolución'}
+                {{
+                  PURCHASE_IN: 'Entrada de compra',
+                  ADJUSTMENT_IN: 'Ajuste de entrada',
+                  ADJUSTMENT_OUT: 'Ajuste de salida',
+                  REVERSAL: 'Reversión',
+                  PRODUCTION_OUT: 'Salida',
+                  PRODUCTION_RETURN: 'Devolución',
+                  PRODUCTION_IN: 'Entrada de producto a granel',
+                  PACKAGING_OUT: 'Consumo de empaque',
+                  PACKAGED_PRODUCT_IN: 'Entrada de unidades envasadas',
+                }[m.type] ?? m.type}
                 <br />
                 Movimiento: {m.id}
                 {m.reversesId && <span> · Revierte: {m.reversesId}</span>}
@@ -716,6 +1226,8 @@ export function Production({ formulas = false }: { formulas?: boolean }) {
       null,
     ),
     [detail, setDetail] = useState<ProductionV1 | null>(null),
+    [yieldEditor, setYieldEditor] = useState<ProductionV1 | null>(null),
+    [packagingEditor, setPackagingEditor] = useState<ProductionV1 | null>(null),
     [transition, setTransition] = useState<{
       row: ProductionV1;
       action: 'start' | 'complete' | 'cancel' | 'reconcile';
@@ -738,6 +1250,8 @@ export function Production({ formulas = false }: { formulas?: boolean }) {
   const done = () => {
     setEditor(null);
     setTransition(null);
+    setYieldEditor(null);
+    setPackagingEditor(null);
     setRevision((n) => n + 1);
   };
   return (
@@ -845,6 +1359,12 @@ export function Production({ formulas = false }: { formulas?: boolean }) {
                         {r.quantity} {units[r.formula.baseUnit]} ·{' '}
                         {date(r.scheduledAt)}
                       </p>
+                      {r.yield?.status === 'CONFIRMED' && (
+                        <p>
+                          Rendimiento: {r.yield.actualQuantity}{' '}
+                          {units[r.yield.baseUnit]} · {r.yield.yieldPercentage}%
+                        </p>
+                      )}
                       {pending && (
                         <p role="status">
                           Confirmación de inventario pendiente
@@ -894,6 +1414,18 @@ export function Production({ formulas = false }: { formulas?: boolean }) {
                                   Completar
                                 </button>
                               )}
+                              {r.status === 'COMPLETED' &&
+                                (!r.yield || r.yield.status === 'REJECTED') && (
+                                  <button onClick={() => setYieldEditor(r)}>
+                                    Registrar rendimiento
+                                  </button>
+                                )}
+                              {r.status === 'COMPLETED' &&
+                                r.yield?.status === 'CONFIRMED' && (
+                                  <button onClick={() => setPackagingEditor(r)}>
+                                    Registrar envasado
+                                  </button>
+                                )}
                               {['DRAFT', 'IN_PROGRESS'].includes(r.status) && (
                                 <button
                                   onClick={() =>
@@ -936,6 +1468,20 @@ export function Production({ formulas = false }: { formulas?: boolean }) {
         <Transition
           {...transition}
           close={() => setTransition(null)}
+          done={done}
+        />
+      )}
+      {yieldEditor && (
+        <YieldEditor
+          row={yieldEditor}
+          close={() => setYieldEditor(null)}
+          done={done}
+        />
+      )}
+      {packagingEditor && (
+        <PackagingEditor
+          row={packagingEditor}
+          close={() => setPackagingEditor(null)}
           done={done}
         />
       )}

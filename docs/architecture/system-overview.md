@@ -59,3 +59,7 @@ Inventory incorpora compras, detalles, ledger y saldo materializado dentro de su
 ## Producción (Fase 4)
 
 Production conserva fórmulas versionadas, lotes y coordinación persistente en su propia base. Inventory confirma consumo/compensación y ledger atómicamente en su base. HTTP técnico autenticado y privado comunica solicitudes idempotentes; recuperación periódica reconcilia respuestas perdidas. No hay atomicidad global, transacciones distribuidas ni acceso cruzado. Ver ADR-010 y production.md.
+
+## Rendimiento y envasado (Fase 5)
+
+Production añade resultados físicos y operaciones de envasado versionadas. Inventory amplía la misma operación técnica idempotente para ingresar granel, consumir granel y empaques, y generar unidades vendibles. Cada presentación es un artículo FINISHED_PRODUCT por unidad; los materiales son PACKAGING. Todos los movimientos de un envasado comparten UUID y transacción Serializable local. Ver ADR-011.

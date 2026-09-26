@@ -13,6 +13,9 @@ export const types = {
   REVERSAL: 'Reversión',
   PRODUCTION_OUT: 'Consumo de producción',
   PRODUCTION_RETURN: 'Devolución de producción',
+  PRODUCTION_IN: 'Entrada de producto a granel',
+  PACKAGING_OUT: 'Consumo de material de empaque',
+  PACKAGED_PRODUCT_IN: 'Entrada de unidades envasadas',
 };
 export const units = { UNIT: 'unidades', GRAM: 'g', MILLILITER: 'ml' };
 export const date = (value: string) =>

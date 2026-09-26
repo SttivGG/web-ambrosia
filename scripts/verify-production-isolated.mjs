@@ -13,7 +13,7 @@ const { Client } = require('pg'),
   { PrismaPg } = require('@prisma/adapter-pg');
 const db = new Client({ connectionString: process.env.DATABASE_URL });
 const names = ['clean', 'upgrade'].map(
-  (n) => 'phase4_' + n + '_' + randomBytes(8).toString('hex'),
+  (n) => 'phase5_' + n + '_' + randomBytes(8).toString('hex'),
 );
 const root = 'services/' + service + '-service/prisma/migrations/';
 const migrations = fs
@@ -183,14 +183,129 @@ async function inventory(schema) {
     const winner = ra.status === 'CONFIRMED' ? a : b;
     const alt = await service.execute({ ...winner, operationId: randomUUID() });
     assert.equal(alt.status, 'REJECTED');
+    const bulk = await prisma.catalogItem.create({
+      data: {
+        sku: 'F5-BULK',
+        normalizedSku: 'F5-BULK',
+        name: 'Producto a granel',
+        normalizedName: 'producto a granel',
+        itemType: 'FINISHED_PRODUCT',
+        categoryId: category.id,
+        inventoryBaseUnit: 'GRAM',
+        defaultOperationUnit: 'GRAM',
+      },
+    });
+    const presentation = await prisma.catalogItem.create({
+      data: {
+        sku: 'F5-PRESENTATION',
+        normalizedSku: 'F5-PRESENTATION',
+        name: 'Presentación 270 g',
+        normalizedName: 'presentación 270 g',
+        itemType: 'FINISHED_PRODUCT',
+        categoryId: category.id,
+        inventoryBaseUnit: 'UNIT',
+        defaultOperationUnit: 'UNIT',
+        nominalCapacityValue: '270',
+        nominalCapacityUnit: 'GRAM',
+      },
+    });
+    const packaging = await prisma.catalogItem.create({
+      data: {
+        sku: 'F5-PACKAGING',
+        normalizedSku: 'F5-PACKAGING',
+        name: 'Envase',
+        normalizedName: 'envase',
+        itemType: 'PACKAGING',
+        categoryId: category.id,
+        inventoryBaseUnit: 'UNIT',
+        defaultOperationUnit: 'UNIT',
+      },
+    });
+    await stock.adjust(
+      {
+        itemId: packaging.id,
+        quantity: '10',
+        type: 'ADJUSTMENT_IN',
+        reason: 'Empaques iniciales',
+        operationId: randomUUID(),
+      },
+      actor,
+    );
+    const productionId = randomUUID();
+    const yieldRequest = {
+      operationId: randomUUID(),
+      productionId,
+      actorId: actor,
+      kind: 'YIELD',
+      reason: 'Rendimiento aislado',
+      output: { itemId: bulk.id, baseUnit: 'GRAM', quantity: '540' },
+    };
+    const yieldResult = await service.execute(yieldRequest);
+    assert.equal(yieldResult.status, 'CONFIRMED');
+    assert.deepEqual(await service.execute(yieldRequest), yieldResult);
+    await assert.rejects(
+      service.execute({ ...yieldRequest, reason: 'Payload diferente' }),
+    );
+    assert.equal((await stock.stock(bulk.id)).quantity, '540');
+    const packageRequest = {
+      operationId: randomUUID(),
+      productionId,
+      actorId: actor,
+      kind: 'PACKAGE',
+      reason: 'Envasado aislado',
+      source: { itemId: bulk.id, baseUnit: 'GRAM', quantity: '540' },
+      materials: [{ itemId: packaging.id, baseUnit: 'UNIT', quantity: '2' }],
+      output: {
+        itemId: presentation.id,
+        baseUnit: 'UNIT',
+        quantity: '2',
+      },
+    };
+    await Promise.allSettled([
+      service.execute(packageRequest),
+      service.execute(packageRequest),
+    ]);
+    const packaged = await service.execute(packageRequest);
+    assert.equal(packaged.status, 'CONFIRMED');
+    assert.deepEqual(await service.execute(packageRequest), packaged);
+    assert.equal((await stock.stock(bulk.id)).quantity, '0');
+    assert.equal((await stock.stock(packaging.id)).quantity, '8');
+    assert.equal((await stock.stock(presentation.id)).quantity, '2');
+    const raceProduction = randomUUID();
+    await service.execute({
+      ...yieldRequest,
+      operationId: randomUUID(),
+      productionId: raceProduction,
+      output: { ...yieldRequest.output, quantity: '270' },
+    });
+    const race = (operationId) => ({
+      ...packageRequest,
+      operationId,
+      productionId: raceProduction,
+      source: { ...packageRequest.source, quantity: '270' },
+      materials: [{ ...packageRequest.materials[0], quantity: '1' }],
+      output: { ...packageRequest.output, quantity: '1' },
+    });
+    const raceA = race(randomUUID()),
+      raceB = race(randomUUID());
+    await Promise.allSettled([service.execute(raceA), service.execute(raceB)]);
+    const raceResults = await Promise.all([
+      service.execute(raceA),
+      service.execute(raceB),
+    ]);
+    assert.equal(
+      raceResults.filter((entry) => entry.status === 'CONFIRMED').length,
+      1,
+    );
+    assert.equal((await stock.stock(bulk.id)).quantity, '0');
     const reconciliation = await prisma.$queryRawUnsafe(
       'SELECT b."itemId" FROM "InventoryBalance" b LEFT JOIN "InventoryMovement" m ON m."itemId"=b."itemId" GROUP BY b."itemId",b.quantity HAVING b.quantity <> coalesce(sum(CASE WHEN m.type IN (' +
-        "'PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN'" +
+        "'PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN','PRODUCTION_IN','PACKAGED_PRODUCT_IN'" +
         ') THEN m.quantity ELSE -m.quantity END),0)',
     );
     assert.equal(reconciliation.length, 0);
     console.log(
-      'PASS PostgreSQL Inventory: duplicados, payload distinto, compensación idempotente, rechazo persistente, rollback después de primera línea, dos producciones concurrentes, saldo no negativo y ledger consistente.',
+      'PASS PostgreSQL Inventory: rendimiento y envasado idempotentes, payload distinto, rollback, competencia concurrente, saldo no negativo y ledger consistente.',
     );
   } finally {
     await prisma.$disconnect();
@@ -199,7 +314,7 @@ async function inventory(schema) {
 await db.connect();
 try {
   for (const name of names) {
-    assert.match(name, /^phase4_(clean|upgrade)_[a-f0-9]{16}$/);
+    assert.match(name, /^phase5_(clean|upgrade)_[a-f0-9]{16}$/);
     await db.query('CREATE SCHEMA "' + name + '"');
   }
   if (service === 'inventory') {

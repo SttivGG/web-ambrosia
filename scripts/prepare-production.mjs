@@ -28,7 +28,7 @@ assert.ok(
   endpoint.startsWith('npipe://') || endpoint.startsWith('unix://'),
   'Solo Docker local',
 );
-mkdirSync('artifacts/phase4', { recursive: true });
+mkdirSync('artifacts/phase5', { recursive: true });
 mkdirSync('artifacts/backups', { recursive: true });
 const evidence = { timestamp: new Date().toISOString(), services: [] };
 function sql(service, query) {
@@ -56,7 +56,7 @@ const snapshots = [];
 for (const service of ['inventory', 'production']) {
   const variable = service.toUpperCase() + '_DB_PASSWORD',
     file =
-      'artifacts/backups/' + service + '-before-phase4-' + Date.now() + '.dump';
+      'artifacts/backups/' + service + '-before-phase5-' + Date.now() + '.dump';
   const dump = run([
     ...args,
     'exec',
@@ -110,7 +110,7 @@ for (const service of ['inventory', 'production']) {
 }
 const save = () =>
   writeFileSync(
-    'artifacts/production-migration.json',
+    'artifacts/phase5-migration.json',
     JSON.stringify(evidence, null, 2),
   );
 save();

@@ -490,3 +490,28 @@ Los ensayos detectaron y se corrigieron la normalización de UUID, el retorno se
 Evidencias locales: artifacts/phase4-{install,lint,typecheck,test,build,format-check,migration,api-ui,stack,security,state}.log; artifacts/{production-migration,production-verification,stack-verification,auth-boundary-verification}.json; artifacts/phase4/{before-tests,final-state}.json y production-{1440,768,375}.png. Los artefactos, respaldos y secretos permanecen ignorados por Git.
 
 Fase 4 completada. Fase 5 permanece pendiente. Sin commit, push ni despliegue externo.
+
+## Fase 5 — Rendimiento y Envasado, 2026-09-25
+
+Baseline: `main` en `7bef62f`, árbol limpio y 428 pruebas heredadas. Resultado final: 433 pruebas, 18 grupos de `test:stack` y ocho grupos de Producción, todos aprobados.
+
+| Validación                                      | Resultado                                                              |
+| ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                | Aprobado                                                               |
+| `pnpm lint` / `pnpm typecheck`                  | Aprobados; 11 tareas cada uno                                          |
+| `pnpm test`                                     | Aprobado; 433 pruebas, 428 heredadas y cinco nuevas                    |
+| `pnpm build` / `pnpm format:check`              | Aprobados; ocho tareas y formato conforme                              |
+| `node scripts/prepare-production.mjs --migrate` | Dos respaldos, clean/upgrade, deploy repetido y conservación aprobados |
+| `node scripts/verify-production.mjs`            | Ocho grupos PostgreSQL, HTTP y Playwright aprobados                    |
+| `pnpm test:stack`                               | 18 grupos aprobados; cierre 2026-09-25T18:18:22.566Z                   |
+| `node scripts/verify-auth-boundary.mjs`         | Git, bundle y logs sin secretos                                        |
+| `node scripts/verify-production-state.mjs`      | Datos, limpieza, ledger, salud y puertos aprobados                     |
+| `git diff --check`                              | Aprobado                                                               |
+
+Totales unitarios: Inventory 191, Production 31, frontend 108, Identity 29, nest-auth 54, Finance seis y raíz 14. Las cinco pruebas nuevas cubren métricas Decimal, redondeo derivado, motivo de merma, unidades enteras y contrato estricto de envasado.
+
+Inventory aislado verificó UUID idempotente, payload distinto, duplicado concurrente, operaciones competidoras sin saldo negativo, rollback y reconciliación. La pila real verificó rendimiento único, `PRODUCTION_IN`, consumos separados de granel y empaque, `PACKAGED_PRODUCT_IN`, trazabilidad por operationId, Swagger, cuatro roles, reinicio y cero errores JavaScript. Fixtures y usuarios temporales fueron eliminados.
+
+Las ejecuciones iniciales detectaron y corrigieron campos Prisma internos en DTO estrictos, merma cero bajo un esquema positivo y el uso incorrecto de `scale(unitsPackaged)=0` sobre `NUMERIC(24,10)`; la migración correctiva usa `unitsPackaged = trunc(unitsPackaged)`. El verificador final trata las tablas nuevas vacías como extensión compatible del baseline e incluye las entradas de Fase 5 en el ledger. Los intentos fallidos no cuentan como aprobados.
+
+Evidencias ignoradas por Git: `artifacts/phase5-migration.json`, `production-verification.json`, `stack-verification.json`, `auth-boundary-verification.json`, `artifacts/phase5/final-state.json` y `artifacts/phase5/production-{1440,768,375}.png`. Estado final: 2026-09-25T18:21:57.217Z, SHA-256 `a30828f0898312b76a90f2409c2ab374a0e3c037030636f9aa04953e3eb75551`.

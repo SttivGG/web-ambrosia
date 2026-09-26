@@ -45,3 +45,5 @@ Antes de actualizar el stack local con datos, ejecutar node scripts/prepare-purc
 ## Despliegue de Producción
 
 Generar secrets/production.local.env con node scripts/generate-production-key.mjs antes de levantar el stack. Solo Inventory y Production reciben PRODUCTION_INVENTORY_TOKEN. Production usa INVENTORY_INTERNAL_URL en la red privada. El job temporal production-migrate aplica migraciones antes del servicio; permanecen ocho contenedores y solo gateway publica 8080. Antes de migrar datos locales ejecutar node scripts/prepare-production.mjs --migrate (respaldos verificables, ensayos aislados y comparación de datos). Ver production.md para recuperación y rotación.
+
+Fase 5 conserva los mismos jobs, bases, credencial y ocho contenedores. El procedimiento de preparación respalda Inventory y Production, ensaya instalación limpia y actualización en esquemas aislados, ejecuta las carreras de rendimiento/envasado y compara todas las columnas anteriores antes de aplicar las dos migraciones aditivas 202609250001.

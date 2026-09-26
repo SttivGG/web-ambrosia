@@ -122,6 +122,9 @@ enum MovementType {
  REVERSAL
  PRODUCTION_OUT
  PRODUCTION_RETURN
+ PRODUCTION_IN
+ PACKAGING_OUT
+ PACKAGED_PRODUCT_IN
 }
 model Purchase {
  id String @id @default(uuid()) @db.Uuid

@@ -7,13 +7,20 @@ import {
 import { randomUUID } from 'node:crypto';
 import {
   consumptionRequestV1Schema,
+  yieldInventoryRequestV1Schema,
+  packagingInventoryRequestV1Schema,
   formulaV1Schema,
   productionV1Schema,
+  productionYieldV1Schema,
+  packagingV1Schema,
   ingredientsV1Schema,
   type FormulaInputV1,
   type FormulaFiltersV1,
   type ProductionFiltersV1,
   type ProductionInputV1,
+  type ProductionYieldInputV1,
+  type PackagingInputV1,
+  type ProductionStockRequestV1,
 } from '@ambrosia/contracts';
 import { PrismaService } from '../prisma.service';
 import {
@@ -29,19 +36,60 @@ import {
   calculate,
   databaseError,
   pagination,
+  yieldMetrics,
+  packagedProductQuantity,
 } from './domain';
 const include = {
   formulaRevision: true,
+  yields: {
+    orderBy: [{ createdAt: 'desc' as const }, { id: 'asc' as const }],
+    take: 1,
+  },
+  packagingOperations: {
+    orderBy: [{ occurredAt: 'desc' as const }, { id: 'asc' as const }],
+  },
   operations: {
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
   },
 };
 type Order = Prisma.ProductionOrderGetPayload<{ include: typeof include }>;
-const dto = (r: Order) =>
-  productionV1Schema.parse({
+const yieldDTO = (r: Order['yields'][number]) =>
+  productionYieldV1Schema.parse({
     ...r,
-    formulaId: r.formulaRevision.formulaId,
-    formula: r.formulaRevision.snapshot,
+    plannedQuantity: r.plannedQuantity.toFixed(),
+    actualQuantity: r.actualQuantity.toFixed(),
+    differenceQuantity: r.differenceQuantity.toFixed(),
+    yieldPercentage: r.yieldPercentage.toFixed(),
+    wasteQuantity: r.wasteQuantity.toFixed(),
+    wastePercentage: r.wastePercentage.toFixed(),
+    occurredAt: r.occurredAt.toISOString(),
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  });
+const packagingDTO = (r: Order['packagingOperations'][number]) =>
+  packagingV1Schema.parse({
+    ...r,
+    unitsPackaged: r.unitsPackaged.toFixed(),
+    productQuantityPerUnit: r.productQuantityPerUnit.toFixed(),
+    productQuantityUsed: r.productQuantityUsed.toFixed(),
+    occurredAt: r.occurredAt.toISOString(),
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  });
+const dto = (r: Order) => {
+  const {
+    formulaRevision,
+    formulaRevisionId: _formulaRevisionId,
+    yields,
+    packagingOperations,
+    operations,
+    ...row
+  } = r;
+  void _formulaRevisionId;
+  return productionV1Schema.parse({
+    ...row,
+    formulaId: formulaRevision.formulaId,
+    formula: formulaRevision.snapshot,
     quantity: r.quantity.toFixed(),
     scheduledAt: r.scheduledAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
@@ -49,12 +97,19 @@ const dto = (r: Order) =>
     startedAt: r.startedAt?.toISOString() ?? null,
     completedAt: r.completedAt?.toISOString() ?? null,
     cancelledAt: r.cancelledAt?.toISOString() ?? null,
-    operations: r.operations.map((o) => ({
-      ...o,
-      createdAt: o.createdAt.toISOString(),
-      updatedAt: o.updatedAt.toISOString(),
+    operations: operations.map((operation) => ({
+      id: operation.id,
+      kind: operation.kind,
+      status: operation.status,
+      error: operation.error,
+      result: operation.result,
+      createdAt: operation.createdAt.toISOString(),
+      updatedAt: operation.updatedAt.toISOString(),
     })),
+    yield: yields[0] ? yieldDTO(yields[0]) : null,
+    packagingOperations: packagingOperations.map(packagingDTO),
   });
+};
 const formulaDTO = (r: Formula & { revisions: FormulaRevision[] }) =>
   formulaV1Schema.parse(r.revisions[0]!.snapshot);
 @Injectable()
@@ -384,6 +439,199 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
       databaseError(e);
     }
   }
+  async recordYield(id: string, data: ProductionYieldInputV1, actorId: string) {
+    try {
+      const operation = await this.db.$transaction(
+        async (tx) => {
+          const row = await tx.productionOrder.findUnique({
+            where: { id },
+            include,
+          });
+          this.editable(row, data.expectedVersion, 'COMPLETED');
+          if (row!.yields.some((result) => result.status !== 'REJECTED'))
+            throw new ProductionError(
+              'DUPLICATE_YIELD',
+              409,
+              'El lote ya tiene un rendimiento pendiente o confirmado.',
+            );
+          const formula = formulaV1Schema.parse(row!.formulaRevision.snapshot);
+          const metrics = yieldMetrics(
+            row!.quantity.toFixed(),
+            data.actualQuantity,
+            data.wasteQuantity,
+          );
+          const operationId = randomUUID();
+          const payload = yieldInventoryRequestV1Schema.parse({
+            operationId,
+            productionId: id,
+            actorId,
+            kind: 'YIELD',
+            reason: 'Rendimiento confirmado del lote ' + row!.batch,
+            output: {
+              itemId: formula.productId,
+              quantity: metrics.actualQuantity,
+              baseUnit: formula.baseUnit,
+            },
+          });
+          const created = await tx.productionOperation.create({
+            data: { id: operationId, orderId: id, kind: 'YIELD', payload },
+          });
+          await tx.productionYield.create({
+            data: {
+              orderId: id,
+              operationId,
+              productId: formula.productId,
+              ...metrics,
+              baseUnit: formula.baseUnit,
+              occurredAt: data.occurredAt,
+              actorId,
+              notes: data.notes ?? null,
+              wasteReason: data.wasteReason ?? null,
+            },
+          });
+          const changed = await tx.productionOrder.updateMany({
+            where: { id, version: data.expectedVersion },
+            data: { version: { increment: 1 } },
+          });
+          if (changed.count !== 1) throw conflict();
+          return created;
+        },
+        { isolationLevel: 'Serializable' },
+      );
+      await this.resolve(operation);
+      return this.get(id);
+    } catch (error) {
+      databaseError(error);
+    }
+  }
+  async package(data: PackagingInputV1, actorId: string) {
+    const presentation = await this.inventory.item(data.presentationProductId);
+    if (
+      !presentation?.active ||
+      !presentation.trackInventory ||
+      presentation.itemType !== 'FINISHED_PRODUCT' ||
+      presentation.inventoryBaseUnit !== 'UNIT' ||
+      !presentation.nominalCapacityValue ||
+      !presentation.nominalCapacityUnit
+    )
+      throw new ProductionError(
+        'INVALID_PRESENTATION',
+        400,
+        'Selecciona un producto terminado por unidad con capacidad nominal explícita.',
+      );
+    for (const material of data.materials) {
+      const item = await this.inventory.item(material.itemId);
+      if (
+        !item?.active ||
+        !item.trackInventory ||
+        item.itemType !== 'PACKAGING' ||
+        item.inventoryBaseUnit !== 'UNIT'
+      )
+        throw new ProductionError(
+          'INVALID_PACKAGING',
+          400,
+          'Todos los materiales deben ser empaques activos controlados por unidad.',
+        );
+    }
+    try {
+      const operation = await this.db.$transaction(
+        async (tx) => {
+          const row = await tx.productionOrder.findUnique({
+            where: { id: data.orderId },
+            include,
+          });
+          this.editable(row, data.expectedVersion, 'COMPLETED');
+          const result = row!.yields.find(
+            (candidate) => candidate.status === 'CONFIRMED',
+          );
+          if (!result)
+            throw new ProductionError(
+              'YIELD_REQUIRED',
+              409,
+              'Confirma primero el rendimiento del lote.',
+            );
+          const Exact = Prisma.Decimal.clone({ precision: 80 });
+          const units = new Exact(data.unitsPackaged);
+          const usedText = packagedProductQuantity(
+            data.unitsPackaged,
+            data.productQuantityPerUnit,
+          );
+          const formula = formulaV1Schema.parse(row!.formulaRevision.snapshot);
+          const allocated = row!.packagingOperations
+            .filter((candidate) => candidate.status !== 'REJECTED')
+            .reduce(
+              (sum, candidate) =>
+                sum.plus(candidate.productQuantityUsed.toFixed()),
+              new Exact(0),
+            );
+          if (allocated.plus(usedText).gt(result.actualQuantity.toFixed()))
+            throw new ProductionError(
+              'INSUFFICIENT_BATCH_YIELD',
+              409,
+              'El envasado supera el rendimiento disponible de este lote.',
+            );
+          const operationId = randomUUID();
+          const payload = packagingInventoryRequestV1Schema.parse({
+            operationId,
+            productionId: data.orderId,
+            actorId,
+            kind: 'PACKAGE',
+            reason: 'Envasado del lote ' + row!.batch,
+            source: {
+              itemId: result.productId,
+              quantity: usedText,
+              baseUnit: result.baseUnit,
+            },
+            materials: data.materials.map((material) => ({
+              ...material,
+              baseUnit: 'UNIT' as const,
+            })),
+            output: {
+              itemId: data.presentationProductId,
+              quantity: units.toFixed(),
+              baseUnit: 'UNIT',
+            },
+          });
+          const created = await tx.productionOperation.create({
+            data: {
+              id: operationId,
+              orderId: data.orderId,
+              kind: 'PACKAGE',
+              payload,
+            },
+          });
+          await tx.packagingOperation.create({
+            data: {
+              orderId: data.orderId,
+              yieldId: result.id,
+              operationId,
+              bulkProductId: formula.productId,
+              presentationProductId: data.presentationProductId,
+              unitsPackaged: units.toFixed(),
+              productQuantityPerUnit: data.productQuantityPerUnit,
+              productQuantityUsed: usedText,
+              baseUnit: result.baseUnit,
+              materials: payload.materials,
+              occurredAt: data.occurredAt,
+              actorId,
+              notes: data.notes ?? null,
+            },
+          });
+          const changed = await tx.productionOrder.updateMany({
+            where: { id: data.orderId, version: data.expectedVersion },
+            data: { version: { increment: 1 } },
+          });
+          if (changed.count !== 1) throw conflict();
+          return created;
+        },
+        { isolationLevel: 'Serializable' },
+      );
+      await this.resolve(operation);
+      return this.get(data.orderId);
+    } catch (error) {
+      databaseError(error);
+    }
+  }
   async reconcile(id: string) {
     const row = await this.db.productionOrder.findUnique({
       where: { id },
@@ -398,7 +646,12 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
     return this.get(id);
   }
   async resolve(operation: ProductionOperation) {
-    const payload = consumptionRequestV1Schema.parse(operation.payload);
+    const payload: ProductionStockRequestV1 =
+      operation.kind === 'CONSUME' || operation.kind === 'REVERSE'
+        ? consumptionRequestV1Schema.parse(operation.payload)
+        : operation.kind === 'YIELD'
+          ? yieldInventoryRequestV1Schema.parse(operation.payload)
+          : packagingInventoryRequestV1Schema.parse(operation.payload);
     const result = await this.inventory.execute(payload);
     if (
       result.operationId !== operation.id ||
@@ -420,11 +673,28 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
           },
         });
         if (applied.count === 0) return;
+        if (operation.kind === 'YIELD')
+          await tx.productionYield.update({
+            where: { operationId: operation.id },
+            data: {
+              status: result.status,
+              version: { increment: 1 },
+            },
+          });
+        if (operation.kind === 'PACKAGE')
+          await tx.packagingOperation.update({
+            where: { operationId: operation.id },
+            data: {
+              status: result.status,
+              version: { increment: 1 },
+            },
+          });
         await tx.productionOrder.update({
           where: { id: operation.orderId },
           data: {
             version: { increment: 1 },
-            ...(result.status === 'CONFIRMED'
+            ...(result.status === 'CONFIRMED' &&
+            (operation.kind === 'CONSUME' || operation.kind === 'REVERSE')
               ? operation.kind === 'CONSUME'
                 ? { status: 'IN_PROGRESS', startedAt: new Date() }
                 : {

@@ -14,6 +14,9 @@ export const MOVEMENT_TYPES_V1 = [
   'REVERSAL',
   'PRODUCTION_OUT',
   'PRODUCTION_RETURN',
+  'PRODUCTION_IN',
+  'PACKAGING_OUT',
+  'PACKAGED_PRODUCT_IN',
 ] as const;
 export const quantityV1Schema = decimalV1Schema.refine(
   (v) => /[1-9]/.test(v),

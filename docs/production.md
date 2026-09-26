@@ -1,4 +1,4 @@
-# Producción — Fase 4
+# Producción — Fases 4 y 5
 
 ## Propiedad y garantías
 
@@ -16,7 +16,15 @@ Dentro de Inventory, existencias y ledger se actualizan atómicamente en la mism
 6. Completar registra el cierre lógico y su fecha. La cantidad planificada es el único resultado cuantitativo de esta fase: no es una medición de rendimiento real ni una entrada de producto terminado en existencias.
 7. Cancelar un borrador no genera movimientos. Cancelar un lote iniciado solicita una compensación explícita e idempotente; permanece IN_PROGRESS hasta confirmarla. Un lote COMPLETED no puede cancelarse.
 
-No incluye rendimiento, mermas, envases, presentaciones, unidades empacadas ni Fase 5. No existe borrado de fórmulas, lotes u operaciones por API.
+Ese cierre lógico de Fase 4 no generaba rendimiento ni existencias; Fase 5 añade esos hechos sin reinterpretar lotes anteriores. No existe borrado de fórmulas, lotes u operaciones por API.
+
+## Rendimiento y envasado — Fase 5
+
+Un lote COMPLETED registra rendimiento en `POST production/orders/:id/yield`. Cantidad real y merma son Decimal en la unidad base de la fórmula; el motivo es obligatorio cuando la merma es positiva. Las fórmulas son: diferencia = real − planificada; rendimiento % = real / planificada × 100; merma % = merma / planificada × 100. Los porcentajes derivados se redondean HALF_UP a diez decimales. Production persiste actor, fecha UTC, notas, métricas, estado, versión y UUID. Inventory confirma la entrada `PRODUCTION_IN` antes del estado CONFIRMED.
+
+`POST production/packaging` exige rendimiento confirmado. El producto vendible es un `FINISHED_PRODUCT` distinto, con unidad UNIT y capacidad nominal. El cuerpo declara explícitamente unidades y cantidad de granel por unidad, más materiales `PACKAGING` y cantidades totales. Inventory valida dimensión/capacidad, bloquea artículos y confirma juntas las salidas de granel y materiales y la entrada de unidades. No se infiere peso desde un recipiente ni se hardcodean 4/8 oz.
+
+Los dos endpoints usan `production.write`; las lecturas permanecen en el detalle/listado protegido por `production.read`. OWNER, ADMIN y OPERATOR gestionan; VIEWER consulta. Las operaciones PENDING se recuperan automáticamente o mediante el endpoint de reconciliación existente. Confirmadas y rechazadas son auditables y no tienen borrado.
 
 ## Versiones e historial
 
@@ -61,7 +69,7 @@ Para un entorno externo, suministrar la credencial mediante el gestor de secreto
 
 Antes de actualizar datos locales: node scripts/prepare-production.mjs --migrate. Respalda Inventory y Production con pg_dump, verifica listado y decodificación de ambos dumps, ensaya instalación limpia y actualización desde Fase 3 en esquemas aislados, ejecuta pruebas PostgreSQL de concurrencia y rollback, aplica deploy dos veces y compara todas las columnas preexistentes de todas las tablas de negocio. No modifica migraciones históricas ni borra volúmenes. production-migrate es un job temporal; se conservan ocho contenedores permanentes.
 
-Inventory agrega los tipos PRODUCTION_OUT/PRODUCTION_RETURN y ProductionStockOperation, con vínculo opcional desde movimientos y ampliación de su check de origen conservando combinaciones históricas. Production agrega Formula, FormulaRevision, ProductionOrder y ProductionOperation. Los checks y únicos parciales protegen estados, cantidades, operación pendiente y consumo confirmado único.
+Inventory agrega los tipos PRODUCTION_OUT/PRODUCTION_RETURN/PRODUCTION_IN/PACKAGING_OUT/PACKAGED_PRODUCT_IN y ProductionStockOperation, con vínculo opcional desde movimientos y ampliación de su check de origen conservando combinaciones históricas. Production agrega Formula, FormulaRevision, ProductionOrder, ProductionOperation, ProductionYield y PackagingOperation. Los checks y únicos parciales protegen estados, cantidades, operación pendiente y rendimiento confirmado único.
 
 ## Pruebas
 

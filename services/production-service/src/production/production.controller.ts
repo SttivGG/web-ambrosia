@@ -29,6 +29,8 @@ import {
   productionListV1Schema,
   productionCancelV1Schema,
   versionV1Schema,
+  productionYieldInputV1Schema,
+  packagingInputV1Schema,
 } from '@ambrosia/contracts';
 import { ProductionService } from './production.service';
 import { parse } from './domain';
@@ -172,5 +174,32 @@ export class ProductionController {
   reconcile(@Param('id') id: string, @Body() input: unknown) {
     parse(versionV1Schema, input);
     return this.service.reconcile(parse(productionIdV1Schema, id));
+  }
+  @Post('orders/:id/yield')
+  @HttpCode(200)
+  @RequirePermissions('production.write')
+  @body(productionYieldInputV1Schema)
+  @responses(productionV1Schema, 'production.write')
+  recordYield(
+    @Param('id') id: string,
+    @Body() input: unknown,
+    @CurrentAuth() auth: AuthContext,
+  ) {
+    return this.service.recordYield(
+      parse(productionIdV1Schema, id),
+      parse(productionYieldInputV1Schema, input),
+      auth.subject,
+    );
+  }
+  @Post('packaging')
+  @HttpCode(200)
+  @RequirePermissions('production.write')
+  @body(packagingInputV1Schema)
+  @responses(productionV1Schema, 'production.write')
+  package(@Body() input: unknown, @CurrentAuth() auth: AuthContext) {
+    return this.service.package(
+      parse(packagingInputV1Schema, input),
+      auth.subject,
+    );
   }
 }

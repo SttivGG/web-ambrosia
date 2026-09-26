@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   consumptionResultV1Schema,
-  type ConsumptionRequestV1,
+  type ProductionStockRequestV1,
   type FormulaInputV1,
 } from '@ambrosia/contracts';
 import { ProductionError } from './domain';
@@ -37,10 +37,26 @@ export class InventoryClient {
       );
     }
   }
-  async execute(payload: ConsumptionRequestV1) {
+  async execute(payload: ProductionStockRequestV1) {
     return consumptionResultV1Schema.parse(
       await this.request('operations', payload),
     );
+  }
+  async item(id: string) {
+    return (await this.request('items/' + id)) as {
+      id: string;
+      active: boolean;
+      trackInventory: boolean;
+      inventoryBaseUnit: 'UNIT' | 'GRAM' | 'MILLILITER';
+      itemType:
+        | 'RAW_MATERIAL'
+        | 'PACKAGING'
+        | 'FINISHED_PRODUCT'
+        | 'BYPRODUCT'
+        | 'SUPPLY';
+      nominalCapacityValue: string | null;
+      nominalCapacityUnit: 'MILLILITER' | 'FLUID_OUNCE' | 'GRAM' | null;
+    } | null;
   }
   async validateFormula(data: FormulaInputV1) {
     const entries = [
@@ -54,12 +70,7 @@ export class InventoryClient {
         'El producto no puede ser su propio insumo.',
       );
     for (const entry of entries) {
-      const item = (await this.request('items/' + entry.itemId)) as {
-        active: boolean;
-        trackInventory: boolean;
-        inventoryBaseUnit: string;
-        itemType: string;
-      } | null;
+      const item = await this.item(entry.itemId);
       if (
         !item ||
         !item.active ||

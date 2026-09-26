@@ -7,7 +7,7 @@
 | 2    | Catálogo y proveedores | **Completada: 2A y 2B**     |
 | 3    | Compras e inventario   | **Completada: 3A y 3B**     |
 | 4    | Producción             | **Completada**              |
-| 5    | Rendimiento y envasado | Pendiente                   |
+| 5    | Rendimiento y envasado | **Completada**              |
 | 6    | Finanzas               | Pendiente                   |
 | 7    | Informes               | Pendiente                   |
 | 8    | Tienda online          | Pendiente                   |
@@ -17,3 +17,5 @@ Fase 1A incorpora identidad, contraseñas Argon2id, sesiones rotativas, JWT RS25
 Fase 3 completada: compras, recepción y reversión transaccionales, ledger, existencias y ajustes manuales. 389 pruebas (329 heredadas y 60 nuevas), siete grupos reales de compras y 17 de test:stack aprobados. Respaldo verificado y datos originales conservados; ver ADR-009, purchases.md y validation.md.
 
 Fase 4 completada: fórmulas versionadas, lotes, consumo idempotente y compensación explícita. ADR-010 preserva database-per-service: Inventory confirma existencias y ledger en su transacción local; Production se coordina mediante operaciones persistentes recuperables. 428 pruebas (389 heredadas y 39 nuevas), siete grupos reales de Producción y 18 de test:stack aprobados. Datos conservados, fixtures limpios y ocho contenedores saludables. Ver production.md y validation.md. Fase 5 permanece pendiente.
+
+Fase 5 completada: rendimiento físico, merma, entrada de producto terminado a granel y envasado en artículos `FINISHED_PRODUCT` vendibles. Cada envasado consume granel y materiales `PACKAGING` y genera unidades dentro de una transacción local idempotente de Inventory. Production conserva la trazabilidad por lote y reconcilia respuestas perdidas mediante UUID persistidos. Ver ADR-011, production.md y validation.md.

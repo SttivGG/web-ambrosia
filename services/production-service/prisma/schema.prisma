@@ -41,6 +41,13 @@ enum ProductionOperationStatus {
 enum ProductionOperationKind {
  CONSUME
  REVERSE
+ YIELD
+ PACKAGE
+}
+enum ProductionRecordStatus {
+ PENDING
+ CONFIRMED
+ REJECTED
 }
 model ProductionOrder {
  id String @id @default(uuid()) @db.Uuid
@@ -61,6 +68,8 @@ model ProductionOrder {
  createdAt DateTime @default(now()) @db.Timestamptz(3)
  updatedAt DateTime @updatedAt @db.Timestamptz(3)
  operations ProductionOperation[]
+ yields ProductionYield[]
+ packagingOperations PackagingOperation[]
  @@index([status, scheduledAt, id])
 }
 model ProductionOperation {
@@ -74,6 +83,62 @@ model ProductionOperation {
  error String? @db.VarChar(500)
  createdAt DateTime @default(now()) @db.Timestamptz(3)
  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ yield ProductionYield?
+ packaging PackagingOperation?
  @@index([status, createdAt, id])
  @@index([orderId, createdAt, id])
+}
+
+model ProductionYield {
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+ operationId String @unique @db.Uuid
+ operation ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+ productId String @db.Uuid
+ plannedQuantity Decimal @db.Decimal(24,10)
+ actualQuantity Decimal @db.Decimal(24,10)
+ differenceQuantity Decimal @db.Decimal(24,10)
+ yieldPercentage Decimal @db.Decimal(24,10)
+ wasteQuantity Decimal @db.Decimal(24,10)
+ wastePercentage Decimal @db.Decimal(24,10)
+ baseUnit String @db.VarChar(20)
+ occurredAt DateTime @db.Timestamptz(3)
+ actorId String @db.Uuid
+ notes String? @db.VarChar(2000)
+ wasteReason String? @db.VarChar(500)
+ status ProductionRecordStatus @default(PENDING)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ packagingOperations PackagingOperation[]
+ @@index([orderId, createdAt, id])
+ @@index([status, occurredAt, id])
+}
+
+model PackagingOperation {
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order ProductionOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+ yieldId String @db.Uuid
+ yield ProductionYield @relation(fields: [yieldId], references: [id], onDelete: Restrict)
+ operationId String @unique @db.Uuid
+ operation ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+ bulkProductId String @db.Uuid
+ presentationProductId String @db.Uuid
+ unitsPackaged Decimal @db.Decimal(24,10)
+ productQuantityPerUnit Decimal @db.Decimal(24,10)
+ productQuantityUsed Decimal @db.Decimal(24,10)
+ baseUnit String @db.VarChar(20)
+ materials Json
+ occurredAt DateTime @db.Timestamptz(3)
+ actorId String @db.Uuid
+ notes String? @db.VarChar(2000)
+ status ProductionRecordStatus @default(PENDING)
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ @@index([orderId, occurredAt, id])
+ @@index([status, occurredAt, id])
+ @@index([presentationProductId, occurredAt, id])
 }

@@ -15,13 +15,13 @@ const args = [
     'infrastructure/docker-compose.yml',
   ],
   base = 'http://localhost:' + (process.env.GATEWAY_PORT || 8080),
-  prefix = 'F4-' + randomBytes(8).toString('hex').toUpperCase(),
+  prefix = 'F5-' + randomBytes(8).toString('hex').toUpperCase(),
   actorId = randomUUID();
 const users = [],
   reports = [],
   errors = [];
 let browser, fixtures;
-mkdirSync('artifacts/phase4', { recursive: true });
+mkdirSync('artifacts/phase5', { recursive: true });
 function pass(test) {
   reports.push({ test, status: 'passed' });
   console.log('PASS ' + test);
@@ -106,7 +106,7 @@ try {
   fixtures = JSON.parse(
     own(
       'inventory',
-      `const c=await db.category.create({data:{name:input.prefix,normalizedName:input.prefix.toLowerCase(),slug:input.prefix.toLowerCase()}});const items=[];for(const [suffix,type] of [['INSUMO','RAW_MATERIAL'],['PRODUCTO','FINISHED_PRODUCT']])items.push(await db.catalogItem.create({data:{sku:input.prefix+'-'+suffix,normalizedSku:input.prefix+'-'+suffix,name:input.prefix+' '+suffix,normalizedName:(input.prefix+' '+suffix).toLowerCase(),categoryId:c.id,itemType:type,inventoryBaseUnit:'GRAM',defaultOperationUnit:'GRAM'}}));const {StockService}=require('./dist/purchases/stock.service');await new StockService(db).adjust({itemId:items[0].id,quantity:'1000',type:'ADJUSTMENT_IN',reason:'Fixture Fase 4',operationId:randomUUID()},input.actorId);console.log(JSON.stringify({categoryId:c.id,itemId:items[0].id,productId:items[1].id}));`,
+      `const c=await db.category.create({data:{name:input.prefix,normalizedName:input.prefix.toLowerCase(),slug:input.prefix.toLowerCase()}});const specs=[['INSUMO','RAW_MATERIAL','GRAM','GRAM',null,null],['PRODUCTO','FINISHED_PRODUCT','GRAM','GRAM',null,null],['PRESENTACION','FINISHED_PRODUCT','UNIT','UNIT','270','GRAM'],['ENVASE','PACKAGING','UNIT','UNIT','8','FLUID_OUNCE']];const items=[];for(const [suffix,type,base,operation,capacity,capacityUnit] of specs)items.push(await db.catalogItem.create({data:{sku:input.prefix+'-'+suffix,normalizedSku:input.prefix+'-'+suffix,name:input.prefix+' '+suffix,normalizedName:(input.prefix+' '+suffix).toLowerCase(),categoryId:c.id,itemType:type,inventoryBaseUnit:base,defaultOperationUnit:operation,nominalCapacityValue:capacity,nominalCapacityUnit:capacityUnit}}));const {StockService}=require('./dist/purchases/stock.service');const stock=new StockService(db);await stock.adjust({itemId:items[0].id,quantity:'1000',type:'ADJUSTMENT_IN',reason:'Fixture Fase 5',operationId:randomUUID()},input.actorId);await stock.adjust({itemId:items[3].id,quantity:'20',type:'ADJUSTMENT_IN',reason:'Fixture Fase 5',operationId:randomUUID()},input.actorId);console.log(JSON.stringify({categoryId:c.id,itemId:items[0].id,productId:items[1].id,presentationId:items[2].id,packagingId:items[3].id}));`,
       { prefix, actorId },
     ),
   );
@@ -266,7 +266,7 @@ try {
       ),
     );
     await page.screenshot({
-      path: 'artifacts/phase4/production-' + width + '.png',
+      path: 'artifacts/phase5/production-' + width + '.png',
       fullPage: true,
     });
   }
@@ -288,7 +288,7 @@ try {
     context,
     'orders',
     'POST',
-    { ...values, batch: prefix + '-COMPLETAR' },
+    { ...values, batch: prefix + '-COMPLETAR', quantity: '540' },
     201,
   );
   complete = await api(context, 'orders/' + complete.id + '/start', 'POST', {
@@ -302,6 +302,74 @@ try {
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   complete = await api(context, 'orders/' + complete.id);
   assert.equal(complete.status, 'COMPLETED');
+  complete = await api(context, 'orders/' + complete.id + '/yield', 'POST', {
+    actualQuantity: '540',
+    wasteQuantity: '0',
+    wasteReason: null,
+    occurredAt: new Date().toISOString(),
+    notes: 'Rendimiento real Fase 5',
+    expectedVersion: complete.version,
+  });
+  assert.equal(complete.yield.status, 'CONFIRMED');
+  assert.equal(complete.yield.yieldPercentage, '100');
+  assert.equal(
+    complete.operations.at(-1).result.movements[0].type,
+    'PRODUCTION_IN',
+  );
+  await api(
+    context,
+    'orders/' + complete.id + '/yield',
+    'POST',
+    {
+      actualQuantity: '540',
+      wasteQuantity: '0',
+      occurredAt: new Date().toISOString(),
+      expectedVersion: complete.version,
+    },
+    409,
+  );
+  complete = await api(context, 'packaging', 'POST', {
+    orderId: complete.id,
+    presentationProductId: fixtures.presentationId,
+    unitsPackaged: '2',
+    productQuantityPerUnit: '270',
+    materials: [{ itemId: fixtures.packagingId, quantity: '2' }],
+    occurredAt: new Date().toISOString(),
+    notes: 'Envasado real Fase 5',
+    expectedVersion: complete.version,
+  });
+  assert.equal(complete.packagingOperations[0].status, 'CONFIRMED');
+  assert.deepEqual(
+    complete.operations
+      .at(-1)
+      .result.movements.map((movement) => movement.type)
+      .sort(),
+    ['PACKAGED_PRODUCT_IN', 'PACKAGING_OUT', 'PRODUCTION_OUT'].sort(),
+  );
+  const balances = JSON.parse(
+    own(
+      'inventory',
+      `const rows=await db.inventoryBalance.findMany({where:{itemId:{in:[input.productId,input.presentationId,input.packagingId]}},orderBy:{itemId:'asc'}});console.log(JSON.stringify(rows.map(r=>({itemId:r.itemId,quantity:r.quantity.toFixed()}))));`,
+      fixtures,
+    ),
+  );
+  assert.equal(
+    balances.find((balance) => balance.itemId === fixtures.productId).quantity,
+    '0',
+  );
+  assert.equal(
+    balances.find((balance) => balance.itemId === fixtures.presentationId)
+      .quantity,
+    '2',
+  );
+  assert.equal(
+    balances.find((balance) => balance.itemId === fixtures.packagingId)
+      .quantity,
+    '18',
+  );
+  pass(
+    'Rendimiento, entrada a granel y envasado atómico con ledger reconciliado',
+  );
   await api(
     context,
     'orders/' + complete.id + '/cancel',
@@ -386,6 +454,8 @@ try {
     await context.request.get(base + '/api/production/docs-json')
   ).json();
   assert.ok(spec.paths['/api/v1/production/orders/{id}/start']);
+  assert.ok(spec.paths['/api/v1/production/orders/{id}/yield']);
+  assert.ok(spec.paths['/api/v1/production/packaging']);
   pass(
     'OWNER/ADMIN/OPERATOR/VIEWER, anónimo, Swagger protegido y rutas técnicas privadas',
   );
@@ -411,6 +481,10 @@ try {
     (await api(context, 'orders/' + complete.id)).status,
     'COMPLETED',
   );
+  assert.equal(
+    (await api(context, 'orders/' + complete.id)).packagingOperations[0].status,
+    'CONFIRMED',
+  );
   assert.deepEqual(errors, []);
   pass('Persistencia tras reinicio y cero errores JavaScript');
 } catch (e) {
@@ -422,13 +496,13 @@ try {
   try {
     own(
       'production',
-      `const orders=await db.productionOrder.findMany({where:{batch:{startsWith:input.prefix}},select:{id:true}});await db.productionOperation.deleteMany({where:{orderId:{in:orders.map(o=>o.id)}}});await db.productionOrder.deleteMany({where:{id:{in:orders.map(o=>o.id)}}});const formulas=await db.formula.findMany({where:{name:{startsWith:input.prefix}},select:{id:true}});await db.formulaRevision.deleteMany({where:{formulaId:{in:formulas.map(f=>f.id)}}});await db.formula.deleteMany({where:{id:{in:formulas.map(f=>f.id)}}});`,
+      `const orders=await db.productionOrder.findMany({where:{batch:{startsWith:input.prefix}},select:{id:true}});const ids=orders.map(o=>o.id);await db.packagingOperation.deleteMany({where:{orderId:{in:ids}}});await db.productionYield.deleteMany({where:{orderId:{in:ids}}});await db.productionOperation.deleteMany({where:{orderId:{in:ids}}});await db.productionOrder.deleteMany({where:{id:{in:ids}}});const formulas=await db.formula.findMany({where:{name:{startsWith:input.prefix}},select:{id:true}});await db.formulaRevision.deleteMany({where:{formulaId:{in:formulas.map(f=>f.id)}}});await db.formula.deleteMany({where:{id:{in:formulas.map(f=>f.id)}}});`,
       { prefix },
     );
     if (fixtures)
       own(
         'inventory',
-        `const ids=[input.itemId,input.productId];const movements=await db.inventoryMovement.findMany({where:{itemId:{in:ids}}});const operations=[...new Set(movements.map(m=>m.productionOperationId).filter(Boolean))];await db.inventoryMovement.deleteMany({where:{itemId:{in:ids},reversesId:{not:null}}});await db.inventoryMovement.deleteMany({where:{itemId:{in:ids}}});await db.productionStockOperation.deleteMany({where:{id:{in:operations},kind:'REVERSE'}});await db.productionStockOperation.deleteMany({where:{OR:[{id:{in:operations}},{payload:{path:['actorId'],equals:input.actorId}}]}});await db.inventoryBalance.deleteMany({where:{itemId:{in:ids}}});await db.catalogItem.deleteMany({where:{id:{in:ids}}});await db.category.delete({where:{id:input.categoryId}});`,
+        `const ids=[input.itemId,input.productId,input.presentationId,input.packagingId];const movements=await db.inventoryMovement.findMany({where:{itemId:{in:ids}}});const operations=[...new Set(movements.map(m=>m.productionOperationId).filter(Boolean))];await db.inventoryMovement.deleteMany({where:{itemId:{in:ids},reversesId:{not:null}}});await db.inventoryMovement.deleteMany({where:{itemId:{in:ids}}});await db.productionStockOperation.deleteMany({where:{id:{in:operations},kind:'REVERSE'}});await db.productionStockOperation.deleteMany({where:{OR:[{id:{in:operations}},{payload:{path:['actorId'],equals:input.actorId}}]}});await db.inventoryBalance.deleteMany({where:{itemId:{in:ids}}});await db.catalogItem.deleteMany({where:{id:{in:ids}}});await db.category.delete({where:{id:input.categoryId}});`,
         { ...fixtures, actorId },
       );
   } catch (e) {

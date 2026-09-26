@@ -34,7 +34,7 @@ export function responses(value: z.ZodType, permission: string, status = 200) {
       description:
         'Permiso: ' +
         permission +
-        '. Cookies requieren CSRF y origen permitido. expectedVersion protege ediciones y transiciones. 409 exige comparar versiones. Las operaciones pendientes se reconcilian con el mismo UUID. Cantidades decimales como texto en unidad base.',
+        '. Cookies requieren CSRF y origen permitido. expectedVersion protege ediciones y transiciones. 409 exige comparar versiones. Las operaciones pendientes se reconcilian con el mismo UUID. Rendimiento y envasado solo se confirman tras el efecto idempotente en Inventory. Cantidades decimales como texto en unidad base.',
     }),
     ApiResponse({ status, schema: schema(value) }),
     ...[400, 401, 403, 404, 409, 500, 503].map((status) =>

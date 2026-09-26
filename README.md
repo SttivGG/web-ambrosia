@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. La Fase 0 estableció la infraestructura y la Fase 1A agrega identidad y sesiones por API. La Fase 1B integra login, recuperación de sesión y protección del panel. La Fase 1C protege los servicios mediante JWT/JWKS, RBAC y CSRF, además de Swagger. La Fase 2A incorpora categorías y catálogo interno de artículos en Inventory. La Fase 2B agrega el directorio de proveedores y sus asociaciones con artículos; la Fase 3 incorpora compras, existencias, movimientos y ajustes. La Fase 4 incorpora producción con coordinación recuperable; finanzas permanece pendiente.
+Sistema de control de producción de yogurt griego. Las Fases 0–4 establecen infraestructura, autenticación, catálogo, compras, inventario y lotes. La Fase 5 incorpora rendimiento físico, merma y envasado con coordinación recuperable e idempotente entre Production e Inventory; finanzas permanece pendiente.
 
 ## Arquitectura
 
@@ -213,4 +213,10 @@ Las rutas /inventario/compras, /inventario/existencias y /inventario/movimientos
 
 ## Producción (Fase 4)
 
-Fórmulas versionadas en /produccion/formulas y lotes en /produccion/lotes. Inventory confirma consumo y compensaciones atómicamente; Production coordina con UUID persistentes, reintentos y reconciliación. No hay atomicidad global ni Fase 5. Antes de actualizar: node scripts/generate-production-key.mjs y node scripts/prepare-production.mjs --migrate. Ver [operación](docs/production.md), [ADR-010](docs/adr/ADR-010-production-coordination.md) y [validación](docs/validation.md).
+Fórmulas versionadas en /produccion/formulas y lotes en /produccion/lotes. Inventory confirma consumo y compensaciones atómicamente; Production coordina con UUID persistentes, reintentos y reconciliación. No hay atomicidad global. Antes de actualizar: node scripts/generate-production-key.mjs y node scripts/prepare-production.mjs --migrate. Ver [operación](docs/production.md), [ADR-010](docs/adr/ADR-010-production-coordination.md) y [validación](docs/validation.md).
+
+## Rendimiento y envasado (Fase 5)
+
+Los lotes completados registran cantidad real, diferencia, rendimiento, merma, responsable y observaciones. La confirmación ingresa producto terminado a granel en Inventory. El envasado consume ese granel y artículos PACKAGING independientes y genera unidades de otro FINISHED_PRODUCT con capacidad nominal explícita. La cantidad por unidad se declara y valida dimensionalmente; un envase de 4/8 oz no implica peso neto.
+
+Production coordina cada efecto mediante UUID persistido y estados PENDING/CONFIRMED/REJECTED. Inventory conserva solicitud, resultado, movimientos y saldos en una transacción Serializable idempotente. La interfaz permanece en /produccion/lotes e integra rendimiento, envasado, pendientes, reconciliación y conflictos con campos conservados. Ver [operación](docs/production.md) y [ADR-011](docs/adr/ADR-011-yield-packaging-coordination.md).

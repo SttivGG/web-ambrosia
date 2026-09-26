@@ -4,8 +4,10 @@ import {
   formulaInputV1Schema,
   productionInputV1Schema,
   consumptionRequestV1Schema,
+  productionYieldInputV1Schema,
+  packagingInputV1Schema,
 } from '@ambrosia/contracts';
-import { calculate } from './domain';
+import { calculate, packagedProductQuantity, yieldMetrics } from './domain';
 import { InventoryClient } from './inventory.client';
 import { ProductionService } from './production.service';
 import type { PrismaService } from '../prisma.service';
@@ -79,6 +81,47 @@ describe('contratos y precisión de producción', () => {
         lines: [line],
       }).success,
     ).toBe(false));
+  it('calcula rendimiento, diferencia y merma con Decimal', () => {
+    expect(yieldMetrics('2700', '2430', '270')).toEqual({
+      plannedQuantity: '2700',
+      actualQuantity: '2430',
+      differenceQuantity: '-270',
+      yieldPercentage: '90',
+      wasteQuantity: '270',
+      wastePercentage: '10',
+    });
+  });
+  it('redondea solo porcentajes derivados a diez decimales', () => {
+    expect(yieldMetrics('3', '1', '2').yieldPercentage).toBe('33.3333333333');
+  });
+  it('exige motivo cuando existe merma', () =>
+    expect(
+      productionYieldInputV1Schema.safeParse({
+        actualQuantity: '9',
+        wasteQuantity: '1',
+        occurredAt: new Date().toISOString(),
+        expectedVersion: 2,
+      }).success,
+    ).toBe(false));
+  it('calcula producto utilizado sin float y exige unidades enteras', () => {
+    expect(packagedProductQuantity('10', '270')).toBe('2700');
+    expect(() => packagedProductQuantity('1.5', '270')).toThrow();
+  });
+  it('rechaza materiales repetidos y campos adicionales al envasar', () => {
+    const material = { itemId: id, quantity: '10' };
+    expect(
+      packagingInputV1Schema.safeParse({
+        orderId: other,
+        presentationProductId: id,
+        unitsPackaged: '10',
+        productQuantityPerUnit: '270',
+        materials: [material, material],
+        occurredAt: new Date().toISOString(),
+        expectedVersion: 3,
+        price: '1000',
+      }).success,
+    ).toBe(false);
+  });
 });
 describe('cliente y recuperación', () => {
   it('sin credencial falla cerrado', async () => {

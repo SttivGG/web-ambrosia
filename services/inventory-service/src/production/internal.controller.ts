@@ -12,7 +12,7 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Public } from '@ambrosia/nest-auth';
 import {
-  consumptionRequestV1Schema,
+  productionStockRequestV1Schema,
   productionIdV1Schema,
 } from '@ambrosia/contracts';
 import { timingSafeEqual } from 'node:crypto';
@@ -51,7 +51,7 @@ export class ProductionInternalController {
     @Body() body: unknown,
   ) {
     internalAuth(token, cookie);
-    return this.service.execute(parse(consumptionRequestV1Schema, body));
+    return this.service.execute(parse(productionStockRequestV1Schema, body));
   }
   @Public()
   @Get('operations/:id')
@@ -80,6 +80,8 @@ export class ProductionInternalController {
         inventoryBaseUnit: true,
         trackInventory: true,
         active: true,
+        nominalCapacityValue: true,
+        nominalCapacityUnit: true,
       },
     });
   }

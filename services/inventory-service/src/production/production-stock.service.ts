@@ -2,8 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   consumptionRequestV1Schema,
   consumptionResultV1Schema,
-  type ConsumptionRequestV1,
+  productionStockRequestV1Schema,
   type ConsumptionResultV1,
+  type ProductionStockRequestV1,
 } from '@ambrosia/contracts';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '../generated/prisma/client';
@@ -27,8 +28,230 @@ export class ProductionStockService {
       );
     return consumptionResultV1Schema.parse(row.result);
   }
-  async execute(input: ConsumptionRequestV1) {
-    const data = parse(consumptionRequestV1Schema, input);
+  private async executeYieldOrPackaging(
+    data: Extract<ProductionStockRequestV1, { kind: 'YIELD' | 'PACKAGE' }>,
+  ) {
+    if (data.kind === 'PACKAGE')
+      data.materials.sort((a, b) => a.itemId.localeCompare(b.itemId));
+    try {
+      return await this.db.$transaction(
+        async (tx) => {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${data.productionId}, 0))`,
+          );
+          const existing = await tx.productionStockOperation.findUnique({
+            where: { id: data.operationId },
+          });
+          if (existing) {
+            const original = parse(
+              productionStockRequestV1Schema,
+              existing.payload,
+            );
+            if (JSON.stringify(original) !== JSON.stringify(data))
+              throw new PurchaseError(
+                'DUPLICATE_OPERATION',
+                409,
+                'El identificador pertenece a otra solicitud.',
+              );
+            return consumptionResultV1Schema.parse(existing.result);
+          }
+          const result: ConsumptionResultV1 = {
+            operationId: data.operationId,
+            productionId: data.productionId,
+            status: 'CONFIRMED',
+            error: null,
+            movements: [],
+          };
+          type Line = {
+            itemId: string;
+            quantity: string;
+            baseUnit: 'UNIT' | 'GRAM' | 'MILLILITER';
+            type:
+              | 'PRODUCTION_IN'
+              | 'PRODUCTION_OUT'
+              | 'PACKAGING_OUT'
+              | 'PACKAGED_PRODUCT_IN';
+          };
+          const lines: Line[] =
+            data.kind === 'YIELD'
+              ? [{ ...data.output, type: 'PRODUCTION_IN' }]
+              : [
+                  { ...data.source, type: 'PRODUCTION_OUT' },
+                  ...data.materials.map((line) => ({
+                    ...line,
+                    type: 'PACKAGING_OUT' as const,
+                  })),
+                  { ...data.output, type: 'PACKAGED_PRODUCT_IN' },
+                ];
+          lines.sort((a, b) => a.itemId.localeCompare(b.itemId));
+          try {
+            if (
+              data.kind === 'YIELD' &&
+              (
+                await tx.productionStockOperation.findMany({
+                  where: { productionId: data.productionId, kind: 'YIELD' },
+                })
+              ).some(
+                (operation) =>
+                  consumptionResultV1Schema.parse(operation.result).status ===
+                  'CONFIRMED',
+              )
+            )
+              throw new PurchaseError(
+                'DUPLICATE_OPERATION',
+                409,
+                'El rendimiento del lote ya ingresó a existencias.',
+              );
+            const items = await this.stock.lockItems(
+              tx,
+              lines.map((line) => line.itemId),
+            );
+            const Exact = Prisma.Decimal.clone({ precision: 80 });
+            for (const line of lines) {
+              const item = items.find(
+                (candidate) => candidate.id === line.itemId,
+              )!;
+              this.stock.requireTracked(item);
+              if (item.inventoryBaseUnit !== line.baseUnit)
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'La unidad de uno de los artículos cambió.',
+                );
+              if (
+                (line.type === 'PRODUCTION_IN' ||
+                  line.type === 'PACKAGED_PRODUCT_IN') &&
+                item.itemType !== 'FINISHED_PRODUCT'
+              )
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'Las entradas deben corresponder a productos terminados.',
+                );
+              if (
+                line.type === 'PACKAGING_OUT' &&
+                (item.itemType !== 'PACKAGING' ||
+                  item.inventoryBaseUnit !== 'UNIT')
+              )
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'Los materiales deben ser artículos de empaque controlados por unidad.',
+                );
+              if (
+                data.kind === 'PACKAGE' &&
+                line.itemId === data.source.itemId &&
+                item.itemType !== 'FINISHED_PRODUCT'
+              )
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'El origen del envasado debe ser un producto terminado a granel.',
+                );
+              const balance = await tx.inventoryBalance.findUnique({
+                where: { itemId: line.itemId },
+              });
+              const current = new Exact(balance?.quantity.toFixed() ?? '0');
+              const outgoing =
+                line.type === 'PRODUCTION_OUT' || line.type === 'PACKAGING_OUT';
+              if (outgoing && current.lt(line.quantity))
+                throw new PurchaseError(
+                  'INSUFFICIENT_STOCK',
+                  409,
+                  'Existencias insuficientes de producto o materiales de empaque.',
+                );
+              if (
+                !outgoing &&
+                current.plus(line.quantity).gte('100000000000000')
+              )
+                throw new PurchaseError(
+                  'DECIMAL_OVERFLOW',
+                  409,
+                  'La entrada excedería la precisión del saldo.',
+                );
+            }
+            if (data.kind === 'PACKAGE') {
+              const output = items.find(
+                (item) => item.id === data.output.itemId,
+              )!;
+              const units = new Exact(data.output.quantity);
+              if (
+                output.inventoryBaseUnit !== 'UNIT' ||
+                !units.isInteger() ||
+                !output.nominalCapacityValue ||
+                !output.nominalCapacityUnit
+              )
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'La presentación debe ser un producto terminado por unidad con capacidad nominal.',
+                );
+              let nominal = new Exact(output.nominalCapacityValue.toFixed());
+              const compatible =
+                (data.source.baseUnit === 'GRAM' &&
+                  output.nominalCapacityUnit === 'GRAM') ||
+                (data.source.baseUnit === 'MILLILITER' &&
+                  ['MILLILITER', 'FLUID_OUNCE'].includes(
+                    output.nominalCapacityUnit,
+                  ));
+              if (output.nominalCapacityUnit === 'FLUID_OUNCE')
+                nominal = nominal.mul('29.5735295625');
+              const explicitPerUnit = new Exact(data.source.quantity).div(
+                units,
+              );
+              if (!compatible || !explicitPerUnit.eq(nominal))
+                throw new PurchaseError(
+                  'VALIDATION_ERROR',
+                  400,
+                  'El contenido explícito por unidad no coincide dimensionalmente con la capacidad nominal de la presentación.',
+                );
+            }
+          } catch (error) {
+            if (!(error instanceof PurchaseError)) throw error;
+            result.status = 'REJECTED';
+            result.error = (error.getResponse() as { message: string }).message;
+          }
+          await tx.productionStockOperation.create({
+            data: {
+              id: data.operationId,
+              productionId: data.productionId,
+              kind: data.kind,
+              payload: data,
+              result: result as unknown as Prisma.InputJsonValue,
+            },
+          });
+          if (result.status === 'CONFIRMED') {
+            for (const line of lines)
+              result.movements.push(
+                await this.stock.record(tx, {
+                  ...line,
+                  origin: 'PRODUCTION',
+                  reference: data.productionId,
+                  reason: data.reason,
+                  actorId: data.actorId,
+                  productionOperationId: data.operationId,
+                }),
+              );
+            await tx.productionStockOperation.update({
+              where: { id: data.operationId },
+              data: { result: result as unknown as Prisma.InputJsonValue },
+            });
+          }
+          return result;
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 10000,
+        },
+      );
+    } catch (error) {
+      databaseError(error);
+    }
+  }
+  async execute(input: ProductionStockRequestV1) {
+    const data = parse(productionStockRequestV1Schema, input);
+    if (data.kind === 'YIELD' || data.kind === 'PACKAGE')
+      return this.executeYieldOrPackaging(data);
     data.lines.sort((a, b) => a.itemId.localeCompare(b.itemId));
     try {
       return await this.db.$transaction(

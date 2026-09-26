@@ -92,7 +92,9 @@ export class StockService {
     const incoming =
       entry.type === 'PURCHASE_IN' ||
       entry.type === 'ADJUSTMENT_IN' ||
-      entry.type === 'PRODUCTION_RETURN';
+      entry.type === 'PRODUCTION_RETURN' ||
+      entry.type === 'PRODUCTION_IN' ||
+      entry.type === 'PACKAGED_PRODUCT_IN';
     await tx.inventoryBalance.upsert({
       where: { itemId: entry.itemId },
       create: { itemId: entry.itemId, quantity: '0' },

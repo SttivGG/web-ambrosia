@@ -60,25 +60,31 @@ for (const service of ['inventory', 'production']) {
   assert.equal(
     sql(
       service,
-      `SELECT count(*) FROM information_schema.schemata WHERE schema_name ~ '^phase4_(clean|upgrade|recovery)_';`,
+      `SELECT count(*) FROM information_schema.schemata WHERE schema_name ~ '^phase(4|5)_(clean|upgrade|recovery)_';`,
     ),
     '0',
   );
 }
-mkdirSync('artifacts/phase4', { recursive: true });
+mkdirSync('artifacts/phase5', { recursive: true });
 if (process.argv.includes('--snapshot')) {
-  writeFileSync('artifacts/phase4/before-tests.json', JSON.stringify(state));
+  writeFileSync('artifacts/phase5/before-tests.json', JSON.stringify(state));
   console.log('PASS instantánea local guardada sin imprimir datos.');
 } else {
-  assert.deepEqual(
-    state,
-    JSON.parse(readFileSync('artifacts/phase4/before-tests.json', 'utf8')),
-    'Datos idénticos a antes de las pruebas',
+  const expected = JSON.parse(
+    readFileSync(
+      process.argv.includes('--phase5-baseline')
+        ? 'artifacts/phase5/before-tests.json'
+        : 'artifacts/phase4/before-tests.json',
+      'utf8',
+    ),
   );
+  for (const table of ['ProductionYield', 'PackagingOperation'])
+    expected.production[table] ??= [];
+  assert.deepEqual(state, expected, 'Datos idénticos a antes de las pruebas');
   assert.equal(
     sql(
       'inventory',
-      `WITH ledger AS (SELECT "itemId",sum(CASE WHEN type IN ('PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN') THEN quantity ELSE -quantity END) q FROM "InventoryMovement" GROUP BY "itemId") SELECT count(*) FROM ledger l FULL JOIN "InventoryBalance" b ON l."itemId"=b."itemId" WHERE coalesce(l.q,0)<>coalesce(b.quantity,0) OR b.quantity<0;`,
+      `WITH ledger AS (SELECT "itemId",sum(CASE WHEN type IN ('PURCHASE_IN','ADJUSTMENT_IN','PRODUCTION_RETURN','PRODUCTION_IN','PACKAGED_PRODUCT_IN') THEN quantity ELSE -quantity END) q FROM "InventoryMovement" GROUP BY "itemId") SELECT count(*) FROM ledger l FULL JOIN "InventoryBalance" b ON l."itemId"=b."itemId" WHERE coalesce(l.q,0)<>coalesce(b.quantity,0) OR b.quantity<0;`,
     ),
     '0',
   );
@@ -95,7 +101,7 @@ if (process.argv.includes('--snapshot')) {
       if (p.PublishedPort)
         assert.ok(c.Service === 'gateway' && p.PublishedPort === 8080);
   writeFileSync(
-    'artifacts/phase4/final-state.json',
+    'artifacts/phase5/final-state.json',
     JSON.stringify(
       {
         timestamp: new Date().toISOString(),

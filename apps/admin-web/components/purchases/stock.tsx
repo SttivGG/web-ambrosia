@@ -439,7 +439,9 @@ export function Movements({ initialItemId = '' }: { initialItemId?: string }) {
                 const incoming =
                   r.type === 'PURCHASE_IN' ||
                   r.type === 'ADJUSTMENT_IN' ||
-                  r.type === 'PRODUCTION_RETURN';
+                  r.type === 'PRODUCTION_RETURN' ||
+                  r.type === 'PRODUCTION_IN' ||
+                  r.type === 'PACKAGED_PRODUCT_IN';
                 return (
                   <li key={r.id}>
                     <div>
