@@ -11,3 +11,4 @@ coverage/
 services/*/src/generated/
 artifacts/
 secrets/
+/comandos.txt

@@ -33,7 +33,8 @@
     "nats": "2.29.3",
     "@ambrosia/contracts": "workspace:*",
     "@ambrosia/shared-config": "workspace:*",
-    "@ambrosia/nest-auth": "workspace:*"
+    "@ambrosia/nest-auth": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "prisma": "7.10.0",

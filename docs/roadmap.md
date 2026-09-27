@@ -8,7 +8,7 @@
 | 3    | Compras e inventario   | **Completada: 3A y 3B**     |
 | 4    | Producción             | **Completada**              |
 | 5    | Rendimiento y envasado | **Completada**              |
-| 6    | Finanzas               | Pendiente                   |
+| 6    | Finanzas               | **Completada**              |
 | 7    | Informes               | Pendiente                   |
 | 8    | Tienda online          | Pendiente                   |
 
@@ -19,3 +19,5 @@ Fase 3 completada: compras, recepción y reversión transaccionales, ledger, exi
 Fase 4 completada: fórmulas versionadas, lotes, consumo idempotente y compensación explícita. ADR-010 preserva database-per-service: Inventory confirma existencias y ledger en su transacción local; Production se coordina mediante operaciones persistentes recuperables. 428 pruebas (389 heredadas y 39 nuevas), siete grupos reales de Producción y 18 de test:stack aprobados. Datos conservados, fixtures limpios y ocho contenedores saludables. Ver production.md y validation.md. Fase 5 permanece pendiente.
 
 Fase 5 completada: rendimiento físico, merma, entrada de producto terminado a granel y envasado en artículos `FINISHED_PRODUCT` vendibles. Cada envasado consume granel y materiales `PACKAGING` y genera unidades dentro de una transacción local idempotente de Inventory. Production conserva la trazabilidad por lote y reconcilia respuestas perdidas mediante UUID persistidos. Ver ADR-011, production.md y validation.md.
+
+Fase 6 completada: cuentas, movimientos COP, pagos parciales de compras y ventas manuales. Finance persiste cada UUID antes de coordinar; Inventory aplica salida o retorno idempotente y Finance confirma ingreso o devolución después. Las compras revertidas conservan pagos y muestran discrepancias para regularización explícita. Ver ADR-012, finance.md y validation.md.

@@ -44,8 +44,9 @@ type Entry = {
   baseUnit: InventoryBaseUnit;
   type: MovementType;
   quantity: string;
-  origin: 'PURCHASE' | 'MANUAL' | 'PRODUCTION';
+  origin: 'PURCHASE' | 'MANUAL' | 'PRODUCTION' | 'SALE';
   productionOperationId?: string;
+  saleOperationId?: string;
   reference: string;
   reason: string;
   actorId: string;
@@ -94,7 +95,8 @@ export class StockService {
       entry.type === 'ADJUSTMENT_IN' ||
       entry.type === 'PRODUCTION_RETURN' ||
       entry.type === 'PRODUCTION_IN' ||
-      entry.type === 'PACKAGED_PRODUCT_IN';
+      entry.type === 'PACKAGED_PRODUCT_IN' ||
+      entry.type === 'SALE_RETURN';
     await tx.inventoryBalance.upsert({
       where: { itemId: entry.itemId },
       create: { itemId: entry.itemId, quantity: '0' },

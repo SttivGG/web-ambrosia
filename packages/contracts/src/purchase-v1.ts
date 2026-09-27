@@ -17,6 +17,8 @@ export const MOVEMENT_TYPES_V1 = [
   'PRODUCTION_IN',
   'PACKAGING_OUT',
   'PACKAGED_PRODUCT_IN',
+  'SALE_OUT',
+  'SALE_RETURN',
 ] as const;
 export const quantityV1Schema = decimalV1Schema.refine(
   (v) => /[1-9]/.test(v),
@@ -77,7 +79,7 @@ export const movementFiltersV1Schema = paging
   .extend({
     itemId: z.string().uuid().optional(),
     type: z.enum(MOVEMENT_TYPES_V1).optional(),
-    origin: z.enum(['PURCHASE', 'MANUAL', 'PRODUCTION']).optional(),
+    origin: z.enum(['PURCHASE', 'MANUAL', 'PRODUCTION', 'SALE']).optional(),
     ...dateRange,
   })
   .strict()
@@ -139,7 +141,7 @@ export const movementV1Schema = z.object({
   type: z.enum(MOVEMENT_TYPES_V1),
   quantity: quantityV1Schema,
   baseUnit: z.enum(BASE_UNITS_V1),
-  origin: z.enum(['PURCHASE', 'MANUAL', 'PRODUCTION']),
+  origin: z.enum(['PURCHASE', 'MANUAL', 'PRODUCTION', 'SALE']),
   reference: z.string(),
   reason: z.string(),
   actorId: z.string().uuid(),

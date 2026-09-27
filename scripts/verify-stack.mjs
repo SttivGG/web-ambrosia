@@ -226,6 +226,11 @@ try {
   );
   assert.equal(production.status, 0, 'Suite real de producción');
   pass('Producción: coordinación recuperable, compensación, API y Playwright');
+  const finance = spawnSync(process.execPath, ['scripts/verify-finance.mjs'], {
+    stdio: 'inherit',
+  });
+  assert.equal(finance.status, 0, 'Suite real de finanzas');
+  pass('Finanzas: pagos, ventas, coordinación, permisos, API y Playwright');
   compose('stop', 'finance-reporting-service');
   await http('/api/finance/health/live', 503);
   await http('/api/production/health/ready', 200);

@@ -55,7 +55,8 @@ describe('identidad', () => {
     expect(ROLE_PERMISSIONS.VIEWER).toContain('purchases.read');
     expect(ROLE_PERMISSIONS.VIEWER).not.toContain('purchases.write');
     expect(ROLE_PERMISSIONS.ADMIN).not.toContain('users.manage');
-    expect(ROLE_PERMISSIONS.OPERATOR).not.toContain('finance.read');
+    expect(ROLE_PERMISSIONS.OPERATOR).toContain('finance.read');
+    expect(ROLE_PERMISSIONS.OPERATOR).toContain('finance.write');
     expect(ROLE_PERMISSIONS.VIEWER).not.toContain('inventory.write');
   });
   it('sesión activa, vencida y reutilizada', () => {

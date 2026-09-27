@@ -34,6 +34,7 @@ const commands = {
     'identity-migrate',
     'inventory-migrate',
     'production-migrate',
+    'finance-migrate',
   ],
   'infra-down': ['stop', 'postgres', 'nats'],
   'gateway-up': ['up', '-d', '--no-deps', 'gateway'],

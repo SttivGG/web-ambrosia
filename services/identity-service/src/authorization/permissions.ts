@@ -14,6 +14,8 @@ export const ROLE_PERMISSIONS: Record<RoleV1, readonly PermissionV1[]> = {
     'purchases.write',
     'production.read',
     'production.write',
+    'finance.read',
+    'finance.write',
     'reports.read',
   ],
   VIEWER: [

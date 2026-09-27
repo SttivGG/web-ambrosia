@@ -20,3 +20,4 @@ export * from './supplier-v1';
 export * from './purchase-v1';
 
 export * from './production-v1';
+export * from './finance-v1';

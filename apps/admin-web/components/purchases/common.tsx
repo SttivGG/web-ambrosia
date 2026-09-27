@@ -16,6 +16,8 @@ export const types = {
   PRODUCTION_IN: 'Entrada de producto a granel',
   PACKAGING_OUT: 'Consumo de material de empaque',
   PACKAGED_PRODUCT_IN: 'Entrada de unidades envasadas',
+  SALE_OUT: 'Salida por venta',
+  SALE_RETURN: 'Devolución por anulación de venta',
 };
 export const units = { UNIT: 'unidades', GRAM: 'g', MILLILITER: 'ml' };
 export const date = (value: string) =>

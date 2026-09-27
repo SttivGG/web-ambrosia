@@ -1,9 +1,190 @@
-// Fase 0: deliberadamente sin modelos de negocio.
 generator client {
- provider = "prisma-client"
- output = "../src/generated/prisma"
- moduleFormat = "cjs"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
+
 datasource db {
- provider = "postgresql"
+  provider = "postgresql"
+}
+
+enum MoneyAccountType {
+  CASH
+  BANK
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum FinanceMovementKind {
+  ADDITIONAL_INCOME
+  EXPENSE
+  PURCHASE_PAYMENT
+  SALE_INCOME
+  SALE_REFUND
+}
+
+enum FinanceDirection {
+  CREDIT
+  DEBIT
+}
+
+enum SaleStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLATION_PENDING
+  CANCELLED
+}
+
+enum SaleOperationKind {
+  CONFIRM
+  CANCEL
+}
+
+enum SaleOperationStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+model MoneyAccount {
+  id          String            @id @default(uuid()) @db.Uuid
+  code        String            @unique @db.VarChar(40)
+  name        String            @db.VarChar(120)
+  type        MoneyAccountType
+  description String?           @db.VarChar(500)
+  active      Boolean           @default(true)
+  currency    String            @default("COP") @db.VarChar(3)
+  version     Int               @default(1)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+  archivedAt  DateTime?         @db.Timestamptz(3)
+  movements   FinanceMovement[]
+  payments    PurchasePayment[]
+  sales       Sale[]
+
+  @@index([active, name, id])
+}
+
+model FinanceMovement {
+  id              String              @id @default(uuid()) @db.Uuid
+  operationId     String              @unique @db.Uuid
+  accountId       String              @db.Uuid
+  account         MoneyAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  kind            FinanceMovementKind
+  direction       FinanceDirection
+  amount          Decimal             @db.Decimal(24, 2)
+  currency        String              @default("COP") @db.VarChar(3)
+  status          String              @default("CONFIRMED") @db.VarChar(12)
+  paymentMethod   PaymentMethod
+  occurredAt      DateTime            @db.Timestamptz(3)
+  reference       String?             @db.VarChar(120)
+  description     String              @db.VarChar(500)
+  actorId         String              @db.Uuid
+  saleId          String?             @db.Uuid
+  sale            Sale?               @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  reversesId      String?             @unique @db.Uuid
+  reverses        FinanceMovement?    @relation("finance_reversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy      FinanceMovement?    @relation("finance_reversal")
+  purchasePayment PurchasePayment?
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([accountId, occurredAt, id])
+  @@index([kind, occurredAt, id])
+  @@index([saleId])
+}
+
+model PurchasePayment {
+  id                 String          @id @default(uuid()) @db.Uuid
+  operationId        String          @unique @db.Uuid
+  purchaseId         String          @db.Uuid
+  accountId          String          @db.Uuid
+  account            MoneyAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  movementId         String          @unique @db.Uuid
+  movement           FinanceMovement @relation(fields: [movementId], references: [id], onDelete: Restrict)
+  amount             Decimal         @db.Decimal(24, 2)
+  currency           String          @default("COP") @db.VarChar(3)
+  paymentMethod      PaymentMethod
+  occurredAt         DateTime        @db.Timestamptz(3)
+  reference          String?         @db.VarChar(120)
+  description        String?         @db.VarChar(500)
+  actorId            String          @db.Uuid
+  purchaseSnapshot   Json
+  discrepancy        Boolean         @default(false)
+  discrepancyReason  String?         @db.VarChar(500)
+  checkedAt          DateTime?       @db.Timestamptz(3)
+  regularizedAt      DateTime?       @db.Timestamptz(3)
+  regularizedBy      String?         @db.Uuid
+  regularizationNote String?         @db.VarChar(500)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([purchaseId, occurredAt, id])
+  @@index([discrepancy, occurredAt, id])
+}
+
+model Sale {
+  id                 String            @id @default(uuid()) @db.Uuid
+  accountId          String            @db.Uuid
+  account            MoneyAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  status             SaleStatus        @default(PENDING)
+  subtotal           Decimal           @db.Decimal(24, 2)
+  total              Decimal           @db.Decimal(24, 2)
+  currency           String            @default("COP") @db.VarChar(3)
+  paymentMethod      PaymentMethod
+  occurredAt         DateTime          @db.Timestamptz(3)
+  reference          String?           @db.VarChar(120)
+  description        String?           @db.VarChar(500)
+  actorId            String            @db.Uuid
+  version            Int               @default(1)
+  confirmedAt        DateTime?         @db.Timestamptz(3)
+  cancelledAt        DateTime?         @db.Timestamptz(3)
+  cancellationReason String?           @db.VarChar(500)
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
+  lines              SaleLine[]
+  operations         SaleOperation[]
+  movements          FinanceMovement[]
+
+  @@index([status, occurredAt, id])
+  @@index([reference])
+}
+
+model SaleLine {
+  id        String  @id @default(uuid()) @db.Uuid
+  saleId    String  @db.Uuid
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  itemId    String  @db.Uuid
+  sku       String  @db.VarChar(40)
+  name      String  @db.VarChar(120)
+  quantity  Int
+  unitPrice Decimal @db.Decimal(24, 2)
+  subtotal  Decimal @db.Decimal(24, 2)
+
+  @@unique([saleId, itemId])
+  @@index([itemId])
+}
+
+model SaleOperation {
+  id                  String              @id @db.Uuid
+  saleId              String              @db.Uuid
+  sale                Sale                @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  kind                SaleOperationKind
+  status              SaleOperationStatus @default(PENDING)
+  payload             Json
+  result              Json?
+  error               String?             @db.VarChar(500)
+  originalOperationId String?             @unique @db.Uuid
+  original            SaleOperation?      @relation("sale_compensation", fields: [originalOperationId], references: [id], onDelete: Restrict)
+  compensation        SaleOperation?      @relation("sale_compensation")
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+
+  @@index([status, updatedAt, id])
+  @@index([saleId, createdAt, id])
 }

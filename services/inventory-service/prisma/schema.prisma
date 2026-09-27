@@ -1,212 +1,253 @@
 generator client {
- provider = "prisma-client"
- output = "../src/generated/prisma"
- moduleFormat = "cjs"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
+
 datasource db {
- provider = "postgresql"
+  provider = "postgresql"
 }
+
 enum ItemType {
- RAW_MATERIAL
- PACKAGING
- FINISHED_PRODUCT
- BYPRODUCT
- SUPPLY
+  RAW_MATERIAL
+  PACKAGING
+  FINISHED_PRODUCT
+  BYPRODUCT
+  SUPPLY
 }
+
 enum InventoryBaseUnit {
- UNIT
- GRAM
- MILLILITER
+  UNIT
+  GRAM
+  MILLILITER
 }
+
 enum OperationUnit {
- UNIT
- GRAM
- KILOGRAM
- MILLILITER
- LITER
+  UNIT
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
 }
+
 enum NominalCapacityUnit {
- MILLILITER
- FLUID_OUNCE
- GRAM
+  MILLILITER
+  FLUID_OUNCE
+  GRAM
 }
+
 model Category {
- id String @id @default(uuid()) @db.Uuid
- name String @db.VarChar(80)
- normalizedName String @unique @db.VarChar(160)
- slug String @unique @db.VarChar(200)
- description String? @db.VarChar(2000)
- active Boolean @default(true)
- version Int @default(1)
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- updatedAt DateTime @updatedAt @db.Timestamptz(3)
- archivedAt DateTime? @db.Timestamptz(3)
- items CatalogItem[]
- @@index([active, name, id])
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String        @db.VarChar(80)
+  normalizedName String        @unique @db.VarChar(160)
+  slug           String        @unique @db.VarChar(200)
+  description    String?       @db.VarChar(2000)
+  active         Boolean       @default(true)
+  version        Int           @default(1)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  archivedAt     DateTime?     @db.Timestamptz(3)
+  items          CatalogItem[]
+
+  @@index([active, name, id])
 }
+
 model CatalogItem {
- purchaseLines PurchaseLine[]
- movements InventoryMovement[]
- balance InventoryBalance?
- suppliers SupplierItem[]
- id String @id @default(uuid()) @db.Uuid
- sku String @unique @db.VarChar(40)
- normalizedSku String @unique @db.VarChar(40)
- name String @db.VarChar(120)
- normalizedName String @db.VarChar(240)
- description String? @db.VarChar(2000)
- itemType ItemType
- categoryId String @db.Uuid
- category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
- inventoryBaseUnit InventoryBaseUnit
- defaultOperationUnit OperationUnit
- nominalCapacityValue Decimal? @db.Decimal(24,10)
- nominalCapacityUnit NominalCapacityUnit?
- trackInventory Boolean @default(true)
- minimumStockBase Decimal? @db.Decimal(24,10)
- barcode String? @unique @db.VarChar(80)
- active Boolean @default(true)
- version Int @default(1)
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- updatedAt DateTime @updatedAt @db.Timestamptz(3)
- archivedAt DateTime? @db.Timestamptz(3)
- @@index([categoryId, active])
- @@index([active, name, id])
- @@index([itemType, inventoryBaseUnit])
- @@index([normalizedName])
+  purchaseLines        PurchaseLine[]
+  movements            InventoryMovement[]
+  balance              InventoryBalance?
+  suppliers            SupplierItem[]
+  id                   String               @id @default(uuid()) @db.Uuid
+  sku                  String               @unique @db.VarChar(40)
+  normalizedSku        String               @unique @db.VarChar(40)
+  name                 String               @db.VarChar(120)
+  normalizedName       String               @db.VarChar(240)
+  description          String?              @db.VarChar(2000)
+  itemType             ItemType
+  categoryId           String               @db.Uuid
+  category             Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  inventoryBaseUnit    InventoryBaseUnit
+  defaultOperationUnit OperationUnit
+  nominalCapacityValue Decimal?             @db.Decimal(24, 10)
+  nominalCapacityUnit  NominalCapacityUnit?
+  trackInventory       Boolean              @default(true)
+  minimumStockBase     Decimal?             @db.Decimal(24, 10)
+  barcode              String?              @unique @db.VarChar(80)
+  active               Boolean              @default(true)
+  version              Int                  @default(1)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
+  archivedAt           DateTime?            @db.Timestamptz(3)
+
+  @@index([categoryId, active])
+  @@index([active, name, id])
+  @@index([itemType, inventoryBaseUnit])
+  @@index([normalizedName])
 }
 
 model Supplier {
- purchases Purchase[]
- id String @id @default(uuid()) @db.Uuid
- code String @unique @db.VarChar(40)
- name String @db.VarChar(160)
- tradeName String? @db.VarChar(160)
- identificationType String? @db.VarChar(20)
- identificationNumber String? @db.VarChar(40)
- normalizedIdentification String? @db.VarChar(40)
- contactName String? @db.VarChar(120)
- email String? @db.VarChar(254)
- phone String? @db.VarChar(40)
- address String? @db.VarChar(240)
- municipality String? @db.VarChar(100)
- department String? @db.VarChar(100)
- notes String? @db.VarChar(2000)
- active Boolean @default(true)
- version Int @default(1)
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- updatedAt DateTime @updatedAt @db.Timestamptz(3)
- archivedAt DateTime? @db.Timestamptz(3)
- items SupplierItem[]
- @@unique([identificationType, normalizedIdentification])
- @@index([active, name, id])
+  purchases                Purchase[]
+  id                       String         @id @default(uuid()) @db.Uuid
+  code                     String         @unique @db.VarChar(40)
+  name                     String         @db.VarChar(160)
+  tradeName                String?        @db.VarChar(160)
+  identificationType       String?        @db.VarChar(20)
+  identificationNumber     String?        @db.VarChar(40)
+  normalizedIdentification String?        @db.VarChar(40)
+  contactName              String?        @db.VarChar(120)
+  email                    String?        @db.VarChar(254)
+  phone                    String?        @db.VarChar(40)
+  address                  String?        @db.VarChar(240)
+  municipality             String?        @db.VarChar(100)
+  department               String?        @db.VarChar(100)
+  notes                    String?        @db.VarChar(2000)
+  active                   Boolean        @default(true)
+  version                  Int            @default(1)
+  createdAt                DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime       @updatedAt @db.Timestamptz(3)
+  archivedAt               DateTime?      @db.Timestamptz(3)
+  items                    SupplierItem[]
+
+  @@unique([identificationType, normalizedIdentification])
+  @@index([active, name, id])
 }
 
 model SupplierItem {
- supplierId String @db.Uuid
- itemId String @db.Uuid
- supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
- item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
- @@id([supplierId, itemId])
- @@index([itemId])
+  supplierId String      @db.Uuid
+  itemId     String      @db.Uuid
+  supplier   Supplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  item       CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@id([supplierId, itemId])
+  @@index([itemId])
 }
+
 enum PurchaseStatus {
- DRAFT
- RECEIVED
- CANCELLED
+  DRAFT
+  RECEIVED
+  CANCELLED
 }
+
 enum MovementType {
- PURCHASE_IN
- ADJUSTMENT_IN
- ADJUSTMENT_OUT
- REVERSAL
- PRODUCTION_OUT
- PRODUCTION_RETURN
- PRODUCTION_IN
- PACKAGING_OUT
- PACKAGED_PRODUCT_IN
+  PURCHASE_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  REVERSAL
+  PRODUCTION_OUT
+  PRODUCTION_RETURN
+  PRODUCTION_IN
+  PACKAGING_OUT
+  PACKAGED_PRODUCT_IN
+  SALE_OUT
+  SALE_RETURN
 }
+
 model Purchase {
- id String @id @default(uuid()) @db.Uuid
- supplierId String @db.Uuid
- supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
- reference String @db.VarChar(80)
- purchasedAt DateTime @db.Timestamptz(3)
- status PurchaseStatus @default(DRAFT)
- notes String? @db.VarChar(2000)
- subtotal Decimal @db.Decimal(24,2)
- total Decimal @db.Decimal(24,2)
- currency String @default("COP") @db.VarChar(3)
- version Int @default(1)
- receivedAt DateTime? @db.Timestamptz(3)
- cancelledAt DateTime? @db.Timestamptz(3)
- cancellationReason String? @db.VarChar(500)
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- updatedAt DateTime @updatedAt @db.Timestamptz(3)
- lines PurchaseLine[]
- @@unique([supplierId, reference])
- @@index([status, purchasedAt, id])
- @@index([purchasedAt, id])
+  id                 String         @id @default(uuid()) @db.Uuid
+  supplierId         String         @db.Uuid
+  supplier           Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  reference          String         @db.VarChar(80)
+  purchasedAt        DateTime       @db.Timestamptz(3)
+  status             PurchaseStatus @default(DRAFT)
+  notes              String?        @db.VarChar(2000)
+  subtotal           Decimal        @db.Decimal(24, 2)
+  total              Decimal        @db.Decimal(24, 2)
+  currency           String         @default("COP") @db.VarChar(3)
+  version            Int            @default(1)
+  receivedAt         DateTime?      @db.Timestamptz(3)
+  cancelledAt        DateTime?      @db.Timestamptz(3)
+  cancellationReason String?        @db.VarChar(500)
+  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(3)
+  lines              PurchaseLine[]
+
+  @@unique([supplierId, reference])
+  @@index([status, purchasedAt, id])
+  @@index([purchasedAt, id])
 }
+
 model PurchaseLine {
- id String @id @default(uuid()) @db.Uuid
- purchaseId String @db.Uuid
- purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
- itemId String @db.Uuid
- item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
- quantity Decimal @db.Decimal(24,10)
- unitCost Decimal @db.Decimal(24,2)
- subtotal Decimal @db.Decimal(24,2)
- baseUnit InventoryBaseUnit
- movements InventoryMovement[]
- @@unique([purchaseId, itemId])
- @@index([itemId])
+  id         String              @id @default(uuid()) @db.Uuid
+  purchaseId String              @db.Uuid
+  purchase   Purchase            @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  itemId     String              @db.Uuid
+  item       CatalogItem         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity   Decimal             @db.Decimal(24, 10)
+  unitCost   Decimal             @db.Decimal(24, 2)
+  subtotal   Decimal             @db.Decimal(24, 2)
+  baseUnit   InventoryBaseUnit
+  movements  InventoryMovement[]
+
+  @@unique([purchaseId, itemId])
+  @@index([itemId])
 }
+
 model InventoryBalance {
- itemId String @id @db.Uuid
- item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
- quantity Decimal @default(0) @db.Decimal(24,10)
- updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  itemId    String      @id @db.Uuid
+  item      CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity  Decimal     @default(0) @db.Decimal(24, 10)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
 }
+
 model InventoryMovement {
- productionOperationId String? @db.Uuid
- productionOperation ProductionStockOperation? @relation(fields: [productionOperationId], references: [id], onDelete: Restrict)
- @@unique([productionOperationId, itemId])
- id String @id @default(uuid()) @db.Uuid
- itemId String @db.Uuid
- item CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
- type MovementType
- quantity Decimal @db.Decimal(24,10)
- baseUnit InventoryBaseUnit
- origin String @db.VarChar(20)
- reference String @db.VarChar(80)
- reason String @db.VarChar(500)
- actorId String @db.Uuid
- occurredAt DateTime @default(now()) @db.Timestamptz(3)
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- purchaseLineId String? @db.Uuid
- purchaseLine PurchaseLine? @relation(fields: [purchaseLineId], references: [id], onDelete: Restrict)
- reversesId String? @unique @db.Uuid
- reverses InventoryMovement? @relation("reversal", fields: [reversesId], references: [id], onDelete: Restrict)
- reversedBy InventoryMovement? @relation("reversal")
- operationId String? @unique @db.Uuid
- @@unique([purchaseLineId, type])
- @@index([itemId, occurredAt, id])
- @@index([type, occurredAt, id])
- @@index([origin, occurredAt, id])
- @@index([occurredAt, id])
+  productionOperationId String?                   @db.Uuid
+  productionOperation   ProductionStockOperation? @relation(fields: [productionOperationId], references: [id], onDelete: Restrict)
+  saleOperationId       String?                   @db.Uuid
+  saleOperation         SaleStockOperation?       @relation(fields: [saleOperationId], references: [id], onDelete: Restrict)
+  id                    String                    @id @default(uuid()) @db.Uuid
+  itemId                String                    @db.Uuid
+  item                  CatalogItem               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  type                  MovementType
+  quantity              Decimal                   @db.Decimal(24, 10)
+  baseUnit              InventoryBaseUnit
+  origin                String                    @db.VarChar(20)
+  reference             String                    @db.VarChar(80)
+  reason                String                    @db.VarChar(500)
+  actorId               String                    @db.Uuid
+  occurredAt            DateTime                  @default(now()) @db.Timestamptz(3)
+  createdAt             DateTime                  @default(now()) @db.Timestamptz(3)
+  purchaseLineId        String?                   @db.Uuid
+  purchaseLine          PurchaseLine?             @relation(fields: [purchaseLineId], references: [id], onDelete: Restrict)
+  reversesId            String?                   @unique @db.Uuid
+  reverses              InventoryMovement?        @relation("reversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy            InventoryMovement?        @relation("reversal")
+  operationId           String?                   @unique @db.Uuid
+
+  @@unique([productionOperationId, itemId])
+  @@unique([saleOperationId, itemId])
+  @@unique([purchaseLineId, type])
+  @@index([itemId, occurredAt, id])
+  @@index([type, occurredAt, id])
+  @@index([origin, occurredAt, id])
+  @@index([occurredAt, id])
+}
+
+model SaleStockOperation {
+  id                  String              @id @db.Uuid
+  saleId              String              @db.Uuid
+  kind                String              @db.VarChar(10)
+  originalOperationId String?             @unique @db.Uuid
+  original            SaleStockOperation? @relation("sale_stock_compensation", fields: [originalOperationId], references: [id], onDelete: Restrict)
+  compensation        SaleStockOperation? @relation("sale_stock_compensation")
+  payload             Json
+  result              Json
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  movements           InventoryMovement[]
+
+  @@index([saleId, createdAt, id])
 }
 
 model ProductionStockOperation {
- id String @id @db.Uuid
- productionId String @db.Uuid
- kind String @db.VarChar(10)
- originalOperationId String? @unique @db.Uuid
- original ProductionStockOperation? @relation("compensation", fields: [originalOperationId], references: [id], onDelete: Restrict)
- compensation ProductionStockOperation? @relation("compensation")
- payload Json
- result Json
- createdAt DateTime @default(now()) @db.Timestamptz(3)
- movements InventoryMovement[]
- @@index([productionId, createdAt, id])
+  id                  String                    @id @db.Uuid
+  productionId        String                    @db.Uuid
+  kind                String                    @db.VarChar(10)
+  originalOperationId String?                   @unique @db.Uuid
+  original            ProductionStockOperation? @relation("compensation", fields: [originalOperationId], references: [id], onDelete: Restrict)
+  compensation        ProductionStockOperation? @relation("compensation")
+  payload             Json
+  result              Json
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  movements           InventoryMovement[]
+
+  @@index([productionId, createdAt, id])
 }

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'node:crypto';
+import { FinanceError } from './finance/domain';
 const logger = new Logger('HTTP');
 export function correlation(req: Request, res: Response, next: NextFunction) {
   const header = req.header('x-request-id');
@@ -33,6 +34,13 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<Response>();
     if (error instanceof AuthError) {
       sendAuthError(error, response);
+      return;
+    }
+    if (error instanceof FinanceError) {
+      response.status(error.getStatus()).json({
+        ...(error.getResponse() as object),
+        requestId: response.getHeader('X-Request-ID'),
+      });
       return;
     }
     const status = error instanceof HttpException ? error.getStatus() : 500;

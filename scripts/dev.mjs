@@ -3,6 +3,11 @@ try {
 } catch {
   throw new Error('Ejecutar node scripts/generate-production-key.mjs.');
 }
+try {
+  process.loadEnvFile('secrets/finance.local.env');
+} catch {
+  throw new Error('Ejecutar pnpm finance:key:generate.');
+}
 import { loadEnvFile } from 'node:process';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';

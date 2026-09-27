@@ -1110,6 +1110,8 @@ function Detail({ row, close }: { row: ProductionV1; close(): void }) {
                   PRODUCTION_IN: 'Entrada de producto a granel',
                   PACKAGING_OUT: 'Consumo de empaque',
                   PACKAGED_PRODUCT_IN: 'Entrada de unidades envasadas',
+                  SALE_OUT: 'Salida por venta',
+                  SALE_RETURN: 'Devolución de venta',
                 }[m.type] ?? m.type}
                 <br />
                 Movimiento: {m.id}

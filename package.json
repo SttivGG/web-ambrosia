@@ -26,6 +26,9 @@
     "test:local": "node scripts/verify-local.mjs",
     "test:ui": "node scripts/verify-ui.mjs",
     "auth:keys:generate": "node scripts/generate-auth-keys.mjs",
+    "finance:key:generate": "node scripts/generate-finance-key.mjs",
+    "finance:prepare": "node scripts/prepare-finance.mjs",
+    "finance:verify": "node scripts/verify-finance.mjs",
     "inventory:seed-catalog": "node scripts/seed-catalog.mjs",
     "auth:bootstrap-owner": "node scripts/bootstrap-owner.mjs"
   },

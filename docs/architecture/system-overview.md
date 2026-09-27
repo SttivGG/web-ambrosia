@@ -63,3 +63,7 @@ Production conserva fórmulas versionadas, lotes y coordinación persistente en 
 ## Rendimiento y envasado (Fase 5)
 
 Production añade resultados físicos y operaciones de envasado versionadas. Inventory amplía la misma operación técnica idempotente para ingresar granel, consumir granel y empaques, y generar unidades vendibles. Cada presentación es un artículo FINISHED_PRODUCT por unidad; los materiales son PACKAGING. Todos los movimientos de un envasado comparten UUID y transacción Serializable local. Ver ADR-011.
+
+## Finanzas (Fase 6)
+
+Finance controla cuentas, ledger monetario, pagos y ventas en ambrosia_finance_reports. Inventory expone por HTTP interno una instantánea de compra y operaciones idempotentes de salida/retorno de venta; no comparte tablas ni Prisma. Finance persiste el UUID y estado pendiente antes del llamado, confirma dinero después del resultado y recupera con el mismo UUID. La credencial Finance–Inventory es independiente y el gateway bloquea rutas internas. Ver ADR-012.

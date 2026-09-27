@@ -136,7 +136,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 </Link>
               </>
             )}
-            {['Finanzas', 'Informes'].map((name) => (
+            {permissions.includes('finance.read') && (
+              <Link
+                href="/finanzas"
+                aria-current={pathname === '/finanzas' ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                Finanzas
+              </Link>
+            )}
+            {['Informes'].map((name) => (
               <span className="nav-coming" key={name}>
                 {name}
                 <small>Próximamente</small>

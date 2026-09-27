@@ -1,4 +1,6 @@
 import { ProductionInternalController } from './production/internal.controller';
+import { FinanceInternalController } from './finance/internal.controller';
+import { SaleStockService } from './finance/sale-stock.service';
 import { ProductionStockService } from './production/production-stock.service';
 import { PurchasesController } from './purchases/purchases.controller';
 import { PurchasesService } from './purchases/purchases.service';
@@ -31,6 +33,7 @@ import { EventBusService } from './event-bus.service';
   ],
   controllers: [
     ProductionInternalController,
+    FinanceInternalController,
     PurchasesController,
     StockController,
     HealthController,
@@ -39,6 +42,7 @@ import { EventBusService } from './event-bus.service';
   ],
   providers: [
     ProductionStockService,
+    SaleStockService,
     PurchasesService,
     StockService,
     PrismaService,

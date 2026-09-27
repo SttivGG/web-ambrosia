@@ -10,7 +10,7 @@ Las aplicaciones no requieren que otro microservicio esté sano para arrancar. L
 
 Los puertos internos en contenedores son fijos; las variables de puertos de servicios corresponden al modo local. GATEWAY_PORT controla la publicación. POSTGRES_HOST/POSTGRES_PORT describen el host local y las URLs deben actualizarse al modificarlos. En contenedores el DNS es postgres:5432 y nats:4222.
 
-Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad usa un job de migración separado y repetible; el proceso HTTP no cambia el esquema durante su arranque. Inventory incorpora inventory-migrate con la misma separación entre migración y proceso HTTP. Producción usa production-migrate para sus modelos y finanzas aún no tiene modelos de negocio.
+Para reconstruir un servicio: `docker compose --env-file .env -f infrastructure/docker-compose.yml up -d --build --no-deps inventory-service`. Identidad, Inventory, Production y Finance usan jobs de migración separados y repetibles; ningún proceso HTTP cambia el esquema durante su arranque.
 
 Antes de operación real: TLS en el borde, un gestor externo para claves/secretos, rotación de claves, backups/restauración probados, límites de recursos y retención de logs. `AUTH_COOKIE_SECURE=true` es obligatorio con `NODE_ENV=production`. El rate limit de login está en memoria y requiere almacenamiento distribuido al desplegar múltiples réplicas. Las imágenes están fijadas por versión, no por digest; actualizar parches mediante revisión deliberada. NATS usa una identidad técnica común; definir ACL por servicio al establecer subjects de negocio.
 
@@ -47,3 +47,9 @@ Antes de actualizar el stack local con datos, ejecutar node scripts/prepare-purc
 Generar secrets/production.local.env con node scripts/generate-production-key.mjs antes de levantar el stack. Solo Inventory y Production reciben PRODUCTION_INVENTORY_TOKEN. Production usa INVENTORY_INTERNAL_URL en la red privada. El job temporal production-migrate aplica migraciones antes del servicio; permanecen ocho contenedores y solo gateway publica 8080. Antes de migrar datos locales ejecutar node scripts/prepare-production.mjs --migrate (respaldos verificables, ensayos aislados y comparación de datos). Ver production.md para recuperación y rotación.
 
 Fase 5 conserva los mismos jobs, bases, credencial y ocho contenedores. El procedimiento de preparación respalda Inventory y Production, ensaya instalación limpia y actualización en esquemas aislados, ejecuta las carreras de rendimiento/envasado y compara todas las columnas anteriores antes de aplicar las dos migraciones aditivas 202609250001.
+
+## Despliegue de Finanzas
+
+Ejecutar pnpm finance:key:generate. Solo Inventory y Finance reciben FINANCE_INVENTORY_TOKEN; Finance usa INVENTORY_INTERNAL_URL privado. finance-migrate aplica 202609260001_finance antes del servicio e inventory-migrate aplica 202609260001_sales_inventory. Siguen siendo ocho contenedores permanentes y solo gateway publica 8080.
+
+Antes de actualizar datos ejecutar pnpm finance:prepare -- --migrate: respalda ambas bases, verifica los dumps, ensaya clean/upgrade y deploy repetido en schemas aislados, prueba carreras y compara los datos previos. No borrar volúmenes.

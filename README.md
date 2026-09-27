@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. Las Fases 0–4 establecen infraestructura, autenticación, catálogo, compras, inventario y lotes. La Fase 5 incorpora rendimiento físico, merma y envasado con coordinación recuperable e idempotente entre Production e Inventory; finanzas permanece pendiente.
+Sistema de control de producción de yogurt griego. Las Fases 0–6 cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado y finanzas. Fase 6 incorpora pagos y ventas manuales con coordinación recuperable e idempotente entre Finance e Inventory.
 
 ## Arquitectura
 
@@ -53,6 +53,7 @@ Generar material criptográfico local antes del primer arranque:
 ```sh
 pnpm auth:keys:generate
 node scripts/generate-production-key.mjs
+pnpm finance:key:generate
 ```
 
 El comando crea `secrets/auth.local.env`, ignorado por Git, con RSA 3072 y el secreto CSRF. No imprime las claves. En un entorno real cargar `JWT_PRIVATE_KEY_BASE64`, `JWT_PUBLIC_KEY_BASE64` y `AUTH_CSRF_SECRET` desde el gestor de secretos; no copiar el archivo local. La regeneración con `--force` invalida tokens existentes y debe tratarse como una rotación planificada.
@@ -168,7 +169,7 @@ En PowerShell reemplazar `curl` por `curl.exe`. Los resultados de esta implement
 - `Configuración inválida`: revisar los nombres indicados, CORS como orígenes sin slash final, puertos válidos y credenciales. Los servicios no cargan `.env` implícitamente: `pnpm dev` centraliza la carga y Docker inyecta variables.
 - Readiness 503: comprobar PostgreSQL/NATS y URLs; liveness debe seguir en 200. Un servicio caído no impide que Nginx resuelva los demás.
 - Cambiar las claves en `.env` no modifica usuarios en un volumen PostgreSQL existente. Rotar contraseñas por SQL y actualizar URLs de forma coordinada; no borrar el volumen para resolverlo en entornos con datos.
-- Inventory e Identity aplican migraciones versionadas mediante `inventory-migrate` e `identity-migrate`. Producción aplica sus modelos mediante production-migrate; finanzas sigue sin modelos de negocio.
+- Inventory, Identity, Production y Finance aplican migraciones versionadas mediante jobs temporales separados del proceso HTTP.
 - Puerto ocupado: detener el proceso anterior o cambiar el puerto y regenerar el gateway local.
 - Scripts de inicialización Linux requieren LF; `.gitattributes` lo fija para futuros clones.
 - La skill UI disponible contenía referencias a scripts inexistentes. Se aplicaron directamente sus reglas de contraste, foco, estados con texto, tamaño táctil y responsive.
@@ -220,3 +221,9 @@ Fórmulas versionadas en /produccion/formulas y lotes en /produccion/lotes. Inve
 Los lotes completados registran cantidad real, diferencia, rendimiento, merma, responsable y observaciones. La confirmación ingresa producto terminado a granel en Inventory. El envasado consume ese granel y artículos PACKAGING independientes y genera unidades de otro FINISHED_PRODUCT con capacidad nominal explícita. La cantidad por unidad se declara y valida dimensionalmente; un envase de 4/8 oz no implica peso neto.
 
 Production coordina cada efecto mediante UUID persistido y estados PENDING/CONFIRMED/REJECTED. Inventory conserva solicitud, resultado, movimientos y saldos en una transacción Serializable idempotente. La interfaz permanece en /produccion/lotes e integra rendimiento, envasado, pendientes, reconciliación y conflictos con campos conservados. Ver [operación](docs/production.md) y [ADR-011](docs/adr/ADR-011-yield-packaging-coordination.md).
+
+## Finanzas (Fase 6)
+
+Abrir **http://localhost:8080/finanzas**. Administra cuentas, movimientos confirmados, pagos parciales y ventas manuales. Los saldos derivan del ledger financiero. Las ventas solo aceptan FINISHED_PRODUCT por UNIT; Inventory descuenta o devuelve stock con UUID idempotente y Finance registra el ingreso o devolución después de la confirmación.
+
+Antes de migrar datos: pnpm finance:key:generate y pnpm finance:prepare -- --migrate. Ver [operación](docs/finance.md), [ADR-012](docs/adr/ADR-012-finance-sales-coordination.md) y [validación](docs/validation.md).
