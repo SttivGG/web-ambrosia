@@ -6,12 +6,21 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { connect, JSONCodec, NatsConnection } from 'nats';
+import {
+  consumerOpts,
+  DiscardPolicy,
+  RetentionPolicy,
+  StorageType,
+  type JetStreamSubscription,
+} from 'nats';
 import type { EventEnvelopeV1 } from '@ambrosia/contracts';
 @Injectable()
 export class EventBusService implements OnModuleInit, OnModuleDestroy {
   private connection?: NatsConnection;
   private timer?: ReturnType<typeof setTimeout>;
   private stopped = false;
+  private reportingSubscription?: JetStreamSubscription;
+  private reportingReady = false;
   private readonly logger = new Logger(EventBusService.name);
   constructor(private readonly config: ConfigService) {}
   onModuleInit() {
@@ -35,6 +44,9 @@ export class EventBusService implements OnModuleInit, OnModuleDestroy {
       this.connection = connection;
       void this.observe(connection);
       void connection.closed().then(() => {
+        if (this.connection === connection) this.connection = undefined;
+        this.reportingReady = false;
+        this.reportingSubscription = undefined;
         if (!this.stopped) this.schedule();
       });
     } catch {
@@ -60,6 +72,68 @@ export class EventBusService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
   }
+  isReportingReady(): boolean {
+    return this.reportingReady;
+  }
+  async startReportingConsumer(
+    handler: (subject: string, value: unknown) => Promise<void>,
+  ): Promise<boolean> {
+    if (
+      !this.connection ||
+      this.connection.isClosed() ||
+      this.reportingSubscription
+    )
+      return this.reportingReady;
+    const manager = await this.connection.jetstreamManager({ timeout: 1500 });
+    try {
+      await manager.streams.info('AMBROSIA_REPORTING');
+    } catch {
+      await manager.streams.add({
+        name: 'AMBROSIA_REPORTING',
+        subjects: [
+          'inventory.reporting.v1',
+          'production.reporting.v1',
+          'finance.reporting.v1',
+        ],
+        retention: RetentionPolicy.Limits,
+        storage: StorageType.File,
+        discard: DiscardPolicy.Old,
+        max_age: 30 * 24 * 60 * 60 * 1_000_000_000,
+        duplicate_window: 2 * 60 * 1_000_000_000,
+      });
+    }
+    const options = consumerOpts();
+    options.durable('finance-reporting-v1');
+    options.deliverTo('finance-reporting-v1.delivery');
+    options.deliverAll();
+    options.manualAck();
+    options.ackExplicit();
+    options.ackWait(30_000);
+    options.maxDeliver(20);
+    const subscription = await this.connection
+      .jetstream({ timeout: 1500 })
+      .subscribe('*.reporting.v1', options);
+    this.reportingSubscription = subscription;
+    this.reportingReady = true;
+    void (async () => {
+      const codec = JSONCodec<unknown>();
+      try {
+        for await (const message of subscription) {
+          try {
+            await handler(message.subject, codec.decode(message.data));
+            message.ack();
+          } catch {
+            message.nak(1_000);
+          }
+        }
+      } finally {
+        this.reportingReady = false;
+        if (this.reportingSubscription === subscription)
+          this.reportingSubscription = undefined;
+      }
+    })();
+    return true;
+  }
   async publish<T>(subject: string, event: EventEnvelopeV1<T>): Promise<void> {
     if (!this.connection) throw new Error('Bus no disponible');
     await this.connection
@@ -67,6 +141,15 @@ export class EventBusService implements OnModuleInit, OnModuleDestroy {
       .publish(subject, JSONCodec<EventEnvelopeV1<T>>().encode(event), {
         msgID: event.id,
       });
+  }
+  async publishReporting<T extends { eventId: string }>(
+    subject: string,
+    event: T,
+  ): Promise<void> {
+    if (!this.connection) throw new Error('Bus no disponible');
+    await this.connection
+      .jetstream({ timeout: 1500 })
+      .publish(subject, JSONCodec<T>().encode(event), { msgID: event.eventId });
   }
   async onModuleDestroy() {
     this.stopped = true;

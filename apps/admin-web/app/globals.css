@@ -1495,3 +1495,106 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.reports .page-intro {
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: clamp(24px, 4vw, 40px);
+  border-radius: var(--radius-card);
+  margin-bottom: 24px;
+}
+.reports .page-intro h1 {
+  margin: 4px 0 8px;
+}
+.reports-state {
+  min-height: 220px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  padding: clamp(24px, 5vw, 48px);
+  background: var(--surface-subtle);
+  border-radius: var(--radius-card);
+}
+.reports-state h2 {
+  margin: 0;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+}
+.reports-state p {
+  max-width: 620px;
+  margin: 0;
+}
+.reports-state button {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 10px 20px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: white;
+  cursor: pointer;
+}
+.reports-loader {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: reports-spin 800ms linear infinite;
+}
+@keyframes reports-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.reports-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.reports-summary article {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-card);
+}
+.reports-summary span,
+.reports-preview li span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.reports-summary strong {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.reports-preview {
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.reports-preview h2 {
+  margin: 0;
+}
+.reports-preview ul {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.reports-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 60px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.reports-preview li > div {
+  display: grid;
+  gap: 4px;
+}
+.reports-preview li > div:last-child {
+  text-align: right;
+}

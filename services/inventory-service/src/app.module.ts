@@ -17,6 +17,8 @@ import { validateServiceEnv } from '@ambrosia/shared-config';
 import { HealthController } from './health.controller';
 import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
+import { ReportingInternalController } from './reporting/internal.controller';
+import { ReportingPublisherService } from './reporting/publisher.service';
 @Module({
   imports: [
     NestAuthModule.register(authOptions(process.env)),
@@ -39,6 +41,7 @@ import { EventBusService } from './event-bus.service';
     HealthController,
     CatalogController,
     SuppliersController,
+    ReportingInternalController,
   ],
   providers: [
     ProductionStockService,
@@ -49,6 +52,7 @@ import { EventBusService } from './event-bus.service';
     EventBusService,
     CatalogService,
     SuppliersService,
+    ReportingPublisherService,
   ],
 })
 export class AppModule {}

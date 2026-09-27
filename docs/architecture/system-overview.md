@@ -71,3 +71,9 @@ Finance controla cuentas, ledger monetario, pagos y ventas en ambrosia_finance_r
 ## Costeo e informes (Fase 7)
 
 Inventory amplía su mismo ledger con valor, costo unitario y promedio ponderado móvil; las existencias históricas positivas requieren valoración inicial explícita. Production recibe y conserva instantáneas no autoritativas del costo real de lote, granel y envasado. Finance recibe COGS confirmado por Inventory y deriva margen bruto. No se agregan bases, servicios, eventos, transacciones distribuidas ni accesos cruzados. Ver ADR-013.
+
+## Infraestructura de Reporting (Fase 8A)
+
+'finance-reporting-service' mantiene separados los módulos Finance y Reporting dentro de la misma aplicación y base propia. Inventory, Production y Finance publican snapshots v1 repetibles en JetStream; el consumidor durable materializa artículos, movimientos, lotes y márgenes con deduplicación por 'eventId' y orden determinista por versión e instante.
+
+Reporting es derivado y eventualmente consistente. No escribe dominios operativos ni consulta bases ajenas. Inventory ofrece una API interna paginada, autenticada y no publicada por el gateway para reconciliar o reconstruir sus proyecciones. La API de usuario expone listas paginadas bajo '/api/v1/reports'; los rangos son UTC y semiabiertos '[from, to)'. 'reports.finance' separa información financiera, 'reports.manage' protege las operaciones administrativas y 'reports.export' queda reservado para exportaciones futuras. Ver ADR-014.

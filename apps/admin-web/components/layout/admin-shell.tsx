@@ -145,12 +145,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 Finanzas
               </Link>
             )}
-            {['Informes'].map((name) => (
-              <span className="nav-coming" key={name}>
-                {name}
-                <small>Próximamente</small>
-              </span>
-            ))}
+            {permissions.includes('reports.read') && (
+              <Link
+                href="/reportes"
+                aria-current={pathname === '/reportes' ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                Reportes <small>Infraestructura</small>
+              </Link>
+            )}
           </nav>
           <p className="sidebar-note">Sistema de control de producción</p>
         </aside>

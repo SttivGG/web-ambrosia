@@ -10,6 +10,9 @@ export const PERMISSIONS_V1 = [
   'finance.read',
   'finance.write',
   'reports.read',
+  'reports.export',
+  'reports.finance',
+  'reports.manage',
 ] as const;
 export const ROLES_V1 = ['OWNER', 'ADMIN', 'OPERATOR', 'VIEWER'] as const;
 export type RoleV1 = (typeof ROLES_V1)[number];

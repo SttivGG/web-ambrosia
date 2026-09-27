@@ -8,6 +8,7 @@ import { validateServiceEnv } from '@ambrosia/shared-config';
 import { HealthController } from './health.controller';
 import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
+import { ReportingPublisherService } from './reporting/publisher.service';
 @Module({
   imports: [
     NestAuthModule.register(authOptions(process.env)),
@@ -28,6 +29,7 @@ import { EventBusService } from './event-bus.service';
     EventBusService,
     ProductionService,
     InventoryClient,
+    ReportingPublisherService,
   ],
 })
 export class AppModule {}

@@ -572,3 +572,33 @@ La regresión integrada reveló dos ajustes necesarios en fixtures de Fases 5 y 
 La causa técnica de la intermitencia de health/Swagger era que `verify-distributed-auth.mjs`, aunque se ejecuta después de reconstrucciones y reinicios reales, hacía consultas de una sola oportunidad y sin timeout o barrera de readiness propia. Una respuesta de red o upstream `502`, `503` o `504` transitoria se convertía en un falso fallo funcional. El verificador ahora espera readiness por servicio con polling acotado a 30 intentos de 250 ms, limita cada petición a tres segundos y solo reintenta red/`502`/`503`/`504`; estados funcionales inesperados como `401`, `403`, `409` o `429` continúan fallando inmediatamente. También registra la ruta y etapa concreta que no estabilice.
 
 La carrera archivado/creación de Catálogo no se reprodujo en cuatro ejecuciones integrales de esta sesión, incluidas dos consecutivas después de la corrección. La aserción se conservó, las transacciones siguen en aislamiento `Serializable` y no se modificaron reglas de Catálogo. La prueba dirigida reinició simultáneamente Inventory, Production, Finance e Identity y lanzó de inmediato la autenticación distribuida; terminó con salida 0. Después, `pnpm test:stack` completó dos ejecuciones integrales consecutivas con sus 19 grupos aprobados, incluidos Catálogo, Producción, Finanzas, caídas/recuperación, aislamiento de bases, persistencia y limpieza. No se hizo commit ni push.
+
+## Fase 8A — Infraestructura de Reporting, 2026-09-27
+
+Reporting quedó integrado como un módulo derivado dentro de `finance-reporting-service`, sin acceso a bases ajenas. Inventory, Production y Finance publican snapshots versionados en los subjects `inventory.reporting.v1`, `production.reporting.v1` y `finance.reporting.v1`. El stream JetStream `AMBROSIA_REPORTING` conserva los eventos durante 30 días y el consumidor durable `finance-reporting-v1` confirma cada mensaje únicamente después de persistir su proyección idempotente.
+
+Las migraciones aditivas son Inventory `202609270001_reporting_snapshots` y Finance/Reporting `202609270001_reporting_infrastructure`. La primera agrega el saldo posterior histórico a nuevos movimientos; la segunda crea el registro de eventos procesados y las cuatro proyecciones derivadas. Se aplicaron mediante los jobs oficiales y una ejecución posterior de `pnpm stack:up` informó `No pending migrations to apply` en Inventory, Production, Finance/Reporting e Identity.
+
+| Validación                                                | Resultado real                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm format:check`                                       | Aprobado                                                         |
+| `pnpm lint`                                               | Aprobado; 11 tareas y scripts raíz                               |
+| `pnpm typecheck`                                          | Aprobado; 11 tareas                                              |
+| `pnpm test`                                               | Aprobado; 474 pruebas, 20 nuevas sobre las 454 heredadas         |
+| `pnpm build`                                              | Aprobado; ocho tareas compilables y ruta `/reportes`             |
+| `git diff --check`                                        | Aprobado                                                         |
+| Prisma Inventory, Production y Finance/Reporting          | Tres esquemas válidos                                            |
+| `node scripts/verify-reporting.mjs`                       | Aprobado con PostgreSQL, JetStream, API, RBAC y navegador reales |
+| `pnpm test:stack`                                         | Aprobado con salida 0 y 20 grupos                                |
+| Segunda ejecución de migraciones mediante `pnpm stack:up` | Aprobada; sin migraciones pendientes                             |
+| Contenedores y puertos                                    | Ocho contenedores `running/healthy`; solo gateway publica 8080   |
+
+Las 474 pruebas se distribuyen en Inventory 199, panel 112, Identity 29, Production 31, Finance/Reporting 28, contratos 5, nest-auth 54 y raíz 16. Las pruebas nuevas cubren contratos y Decimal, payload inválido, versión, `UNVALUED`, intervalos `[from, to)`, paginación, snapshots de Inventory, movimientos, Production, margen histórico de Finance, idempotencia por `eventId`, orden por versión/fecha, reconciliación, reconstrucción, RBAC y estados de UI.
+
+El verificador real detuvo `finance-reporting-service`, creó en Inventory una entrada válida de 7.5 gramos sin valoración y comprobó que Inventory permanecía listo. Tras reiniciar Reporting, el durable consumer recuperó el artículo y el movimiento; `weightedAverageCost` e `inventoryValue` continuaron en `null`. Dos reconciliaciones consecutivas no duplicaron datos. La reconstrucción eliminó solo las proyecciones derivadas de Inventory, volvió a consultar su endpoint interno autenticado y produjo el mismo estado funcional; únicamente cambió `processedAt`, como corresponde a un reprocesamiento.
+
+La API inicial expone health, inventario, movimientos, producción y finanzas con paginación limitada, filtros y fechas UTC. El intervalo es semiabierto `[from, to)`; la interpretación posterior de periodos usará `America/Bogota`. Los permisos `reports.read`, `reports.finance`, `reports.export` y `reports.manage` separan lectura general, datos financieros, exportaciones futuras y administración de proyecciones. OWNER y ADMIN reciben `reports.manage`; OPERATOR y VIEWER no. La UI mínima en `/reportes` se verificó con navegador real y conserva estados loading, vacío, error, permiso denegado y datos disponibles.
+
+Durante la validación se corrigió la configuración del consumidor push de NATS 2.29: el durable consumer requería un `deliver_subject` estable. También se ajustó el verificador para tratar `processedAt` como metadato de reprocesamiento y para comprobar el encabezado real de la UI. Los intentos fallidos no se contabilizan como aprobados. No se implementaron dashboards finales ni exportaciones PDF, XLSX o CSV.
+
+Evidencias locales ignoradas por Git: `artifacts/phase8a/verification.json` y `artifacts/stack-verification.json`. No se hizo commit ni push y `docs/operations/` permaneció intacto y fuera del staging.

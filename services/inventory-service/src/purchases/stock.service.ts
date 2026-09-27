@@ -210,6 +210,7 @@ export class StockService {
       await tx.inventoryMovement.create({
         data: {
           ...entry,
+          balanceAfter: nextQuantity.toFixed(),
           totalCost: movementCost === null ? null : persistedCost(movementCost),
           unitCost:
             movementCost === null

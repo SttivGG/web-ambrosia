@@ -2,7 +2,12 @@ export interface HealthV1 {
   service: string;
   status: 'ok' | 'unavailable';
   timestamp: string;
-  dependencies?: { database: boolean; nats: boolean; jwks?: boolean };
+  dependencies?: {
+    database: boolean;
+    nats: boolean;
+    jwks?: boolean;
+    reporting?: boolean;
+  };
 }
 /** Envelope versionado; sin eventos de negocio ni entidades persistentes. */
 export interface EventEnvelopeV1<T> {
@@ -21,3 +26,4 @@ export * from './purchase-v1';
 
 export * from './production-v1';
 export * from './finance-v1';
+export * from './reporting-v1';

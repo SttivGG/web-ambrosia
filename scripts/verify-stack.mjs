@@ -84,6 +84,7 @@ try {
       database: true,
       nats: true,
       ...(route === 'auth' ? {} : { jwks: true }),
+      ...(route === 'finance' ? { reporting: true } : {}),
     });
     await http('/api/' + route + '/docs/', 401);
     await http('/api/' + route + '/docs-json', 401);
@@ -231,6 +232,15 @@ try {
   });
   assert.equal(finance.status, 0, 'Suite real de finanzas');
   pass('Finanzas: pagos, ventas, coordinación, permisos, API y Playwright');
+  const reporting = spawnSync(
+    process.execPath,
+    ['scripts/verify-reporting.mjs'],
+    { stdio: 'inherit' },
+  );
+  assert.equal(reporting.status, 0, 'Suite real de Reporting');
+  pass(
+    'Reporting: recuperación, proyección, API, RBAC, reconciliación y reconstrucción',
+  );
   compose('stop', 'finance-reporting-service');
   await http('/api/finance/health/live', 503);
   await http('/api/production/health/ready', 200);

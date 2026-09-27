@@ -4,12 +4,14 @@ import { describe, it, expect } from 'vitest';
 import { HealthController } from './health.controller';
 import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
+import { ReportingConsumerService } from './reporting/consumer.service';
 describe('health finance-reporting-service', () => {
   const make = (database: boolean, nats: boolean, jwks = true) =>
     new HealthController(
       { isReady: async () => database } as PrismaService,
       { isReady: async () => nats } as EventBusService,
       { isReady: async () => jwks } as JwtVerifier,
+      { isReady: () => true } as ReportingConsumerService,
     );
   it('liveness no depende de infraestructura', () =>
     expect(make(false, false).live().status).toBe('ok'));

@@ -8,6 +8,11 @@ import { EventBusService } from './event-bus.service';
 import { FinanceController } from './finance/finance.controller';
 import { FinanceService } from './finance/finance.service';
 import { InventoryClient } from './finance/inventory.client';
+import { ReportingController } from './reporting/reporting.controller';
+import { ReportingService } from './reporting/reporting.service';
+import { ReportingConsumerService } from './reporting/consumer.service';
+import { InventoryReconciliationService } from './reporting/reconciliation.service';
+import { FinanceReportingPublisherService } from './reporting/finance-publisher.service';
 @Module({
   imports: [
     NestAuthModule.register(authOptions(process.env)),
@@ -22,7 +27,16 @@ import { InventoryClient } from './finance/inventory.client';
         }),
     }),
   ],
-  controllers: [HealthController, FinanceController],
-  providers: [PrismaService, EventBusService, FinanceService, InventoryClient],
+  controllers: [HealthController, FinanceController, ReportingController],
+  providers: [
+    PrismaService,
+    EventBusService,
+    FinanceService,
+    InventoryClient,
+    ReportingService,
+    ReportingConsumerService,
+    InventoryReconciliationService,
+    FinanceReportingPublisherService,
+  ],
 })
 export class AppModule {}

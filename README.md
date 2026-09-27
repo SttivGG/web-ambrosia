@@ -1,10 +1,10 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. Las Fases 0–7 cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado, finanzas y costeo. Fase 7 incorpora promedio ponderado, costo real por lote, COGS y margen bruto sin alterar la separación entre servicios.
+Sistema de control de producción de yogurt griego. Las Fases 0–8A cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado, finanzas, costeo y read models de Reporting. Fase 8A incorpora proyecciones idempotentes, reconciliación y consultas paginadas sin alterar la separación entre servicios.
 
 ## Arquitectura
 
-El navegador accede a Nginx. Este sirve Next.js y enruta a cuatro aplicaciones NestJS independientes. Cada servicio tiene un esquema y cliente Prisma propios y una base PostgreSQL con usuario exclusivo. `identity-service` posee usuarios, roles, contraseñas, sesiones, auditoría y claves JWT. NATS JetStream proporciona transporte asíncrono persistente; todavía no se definen eventos de negocio ni streams permanentes.
+El navegador accede a Nginx. Este sirve Next.js y enruta a cuatro aplicaciones NestJS independientes. Cada servicio tiene un esquema y cliente Prisma propios y una base PostgreSQL con usuario exclusivo. `identity-service` posee usuarios, roles, contraseñas, sesiones, auditoría y claves JWT. NATS JetStream proporciona transporte asíncrono persistente. Reporting usa contratos v1, un stream permanente y un consumidor durable; las operaciones coordinadas de los dominios conservan sus mecanismos HTTP idempotentes.
 
 ```text
 apps/admin-web/                  Next.js App Router, Tailwind, estado de servicios

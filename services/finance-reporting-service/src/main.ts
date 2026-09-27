@@ -49,7 +49,7 @@ async function bootstrap() {
       .addBearerAuth(undefined, 'bearerAuth')
       .addServer('..')
       .setDescription(
-        'Finanzas de Ambrosia: cuentas, movimientos COP, pagos de compras y ventas manuales coordinadas con Inventory.',
+        'Finanzas y Reporting de Ambrosia: operaciones COP y read models derivados, idempotentes y reconciliables.',
       )
       .build(),
   );

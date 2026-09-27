@@ -135,9 +135,9 @@ model Sale {
   status             SaleStatus        @default(PENDING)
   subtotal           Decimal           @db.Decimal(24, 2)
   total              Decimal           @db.Decimal(24, 2)
-  costOfGoodsSold    Decimal?           @db.Decimal(48, 18)
-  grossMargin        Decimal?           @db.Decimal(48, 18)
-  grossMarginPercent Decimal?           @db.Decimal(24, 10)
+  costOfGoodsSold    Decimal?          @db.Decimal(48, 18)
+  grossMargin        Decimal?          @db.Decimal(48, 18)
+  grossMarginPercent Decimal?          @db.Decimal(24, 10)
   currency           String            @default("COP") @db.VarChar(3)
   paymentMethod      PaymentMethod
   occurredAt         DateTime          @db.Timestamptz(3)
@@ -159,16 +159,16 @@ model Sale {
 }
 
 model SaleLine {
-  id        String  @id @default(uuid()) @db.Uuid
-  saleId    String  @db.Uuid
-  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  itemId    String  @db.Uuid
-  sku       String  @db.VarChar(40)
-  name      String  @db.VarChar(120)
-  quantity  Int
-  unitPrice Decimal @db.Decimal(24, 2)
-  subtotal  Decimal @db.Decimal(24, 2)
-  unitCost  Decimal? @db.Decimal(48, 18)
+  id           String   @id @default(uuid()) @db.Uuid
+  saleId       String   @db.Uuid
+  sale         Sale     @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  itemId       String   @db.Uuid
+  sku          String   @db.VarChar(40)
+  name         String   @db.VarChar(120)
+  quantity     Int
+  unitPrice    Decimal  @db.Decimal(24, 2)
+  subtotal     Decimal  @db.Decimal(24, 2)
+  unitCost     Decimal? @db.Decimal(48, 18)
   costSubtotal Decimal? @db.Decimal(48, 18)
 
   @@unique([saleId, itemId])
@@ -192,4 +192,129 @@ model SaleOperation {
 
   @@index([status, updatedAt, id])
   @@index([saleId, createdAt, id])
+}
+
+model ReportProcessedEvent {
+  eventId        String   @id @db.Uuid
+  subject        String   @db.VarChar(80)
+  sourceService  String   @db.VarChar(80)
+  sourceEntityId String   @db.Uuid
+  operationId    String?  @db.Uuid
+  occurredAt     DateTime @db.Timestamptz(3)
+  processedAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([sourceEntityId])
+  @@index([operationId])
+  @@index([occurredAt])
+  @@index([processedAt])
+}
+
+model ReportInventoryItem {
+  sourceService       String   @db.VarChar(80)
+  sourceEntityId      String   @id @db.Uuid
+  sourceVersion       BigInt
+  operationId         String?  @db.Uuid
+  eventId             String   @unique @db.Uuid
+  occurredAt          DateTime @db.Timestamptz(3)
+  processedAt         DateTime @default(now()) @db.Timestamptz(3)
+  itemId              String   @unique @db.Uuid
+  itemNameSnapshot    String   @db.VarChar(120)
+  itemType            String   @db.VarChar(32)
+  unit                String   @db.VarChar(20)
+  onHand              Decimal  @db.Decimal(24, 10)
+  valuationStatus     String   @db.VarChar(16)
+  weightedAverageCost Decimal? @db.Decimal(48, 18)
+  inventoryValue      Decimal? @db.Decimal(48, 18)
+  active              Boolean
+  updatedAt           DateTime @db.Timestamptz(3)
+
+  @@index([operationId])
+  @@index([eventId])
+  @@index([occurredAt])
+  @@index([updatedAt])
+  @@index([itemType, valuationStatus])
+}
+
+model ReportInventoryMovement {
+  sourceService    String   @db.VarChar(80)
+  sourceEntityId   String   @id @db.Uuid
+  sourceVersion    BigInt
+  operationId      String?  @db.Uuid
+  eventId          String   @unique @db.Uuid
+  occurredAt       DateTime @db.Timestamptz(3)
+  processedAt      DateTime @default(now()) @db.Timestamptz(3)
+  movementId       String   @unique @db.Uuid
+  itemId           String   @db.Uuid
+  itemNameSnapshot String   @db.VarChar(120)
+  movementType     String   @db.VarChar(32)
+  reference        String   @db.VarChar(120)
+  quantityIn       Decimal  @db.Decimal(24, 10)
+  quantityOut      Decimal  @db.Decimal(24, 10)
+  balanceAfter     Decimal? @db.Decimal(24, 10)
+  unitCost         Decimal? @db.Decimal(48, 18)
+  totalCost        Decimal? @db.Decimal(48, 18)
+  averageCostAfter Decimal? @db.Decimal(48, 18)
+
+  @@index([itemId, occurredAt])
+  @@index([operationId])
+  @@index([eventId])
+  @@index([occurredAt])
+  @@index([movementType, occurredAt])
+}
+
+model ReportProductionBatch {
+  sourceService           String    @db.VarChar(80)
+  sourceEntityId          String    @id @db.Uuid
+  sourceVersion           BigInt
+  operationId             String?   @db.Uuid
+  eventId                 String    @unique @db.Uuid
+  occurredAt              DateTime  @db.Timestamptz(3)
+  processedAt             DateTime  @default(now()) @db.Timestamptz(3)
+  batchId                 String    @unique @db.Uuid
+  batch                   String    @db.VarChar(80)
+  productId               String    @db.Uuid
+  productNameSnapshot     String?   @db.VarChar(120)
+  status                  String    @db.VarChar(24)
+  startedAt               DateTime? @db.Timestamptz(3)
+  completedAt             DateTime? @db.Timestamptz(3)
+  inputQuantity           Decimal   @db.Decimal(24, 10)
+  outputQuantity          Decimal?  @db.Decimal(24, 10)
+  yieldPercentage         Decimal?  @db.Decimal(24, 10)
+  wasteQuantity           Decimal?  @db.Decimal(24, 10)
+  accumulatedCost         Decimal?  @db.Decimal(48, 18)
+  sellableCost            Decimal?  @db.Decimal(48, 18)
+  packagingOutputQuantity Decimal?  @db.Decimal(24, 10)
+
+  @@index([productId, occurredAt])
+  @@index([operationId])
+  @@index([eventId])
+  @@index([occurredAt])
+  @@index([status, occurredAt])
+}
+
+model ReportSaleMargin {
+  sourceService       String   @db.VarChar(80)
+  sourceEntityId      String   @id @db.Uuid
+  sourceVersion       BigInt
+  operationId         String?  @db.Uuid
+  eventId             String   @unique @db.Uuid
+  occurredAt          DateTime @db.Timestamptz(3)
+  processedAt         DateTime @default(now()) @db.Timestamptz(3)
+  saleId              String   @db.Uuid
+  saleLineId          String   @unique @db.Uuid
+  status              String   @db.VarChar(24)
+  productId           String   @db.Uuid
+  productNameSnapshot String   @db.VarChar(120)
+  quantity            Decimal  @db.Decimal(24, 10)
+  revenue             Decimal  @db.Decimal(48, 18)
+  cogs                Decimal? @db.Decimal(48, 18)
+  grossMargin         Decimal? @db.Decimal(48, 18)
+  grossMarginPercent  Decimal? @db.Decimal(24, 10)
+
+  @@index([saleId])
+  @@index([productId, occurredAt])
+  @@index([operationId])
+  @@index([eventId])
+  @@index([occurredAt])
+  @@index([status, occurredAt])
 }

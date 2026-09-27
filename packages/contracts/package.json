@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run src --passWithNoTests",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {

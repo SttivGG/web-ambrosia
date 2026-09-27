@@ -68,6 +68,15 @@ export class EventBusService implements OnModuleInit, OnModuleDestroy {
         msgID: event.id,
       });
   }
+  async publishReporting<T extends { eventId: string }>(
+    subject: string,
+    event: T,
+  ): Promise<void> {
+    if (!this.connection) throw new Error('Bus no disponible');
+    await this.connection
+      .jetstream({ timeout: 1500 })
+      .publish(subject, JSONCodec<T>().encode(event), { msgID: event.eventId });
+  }
   async onModuleDestroy() {
     this.stopped = true;
     clearTimeout(this.timer);

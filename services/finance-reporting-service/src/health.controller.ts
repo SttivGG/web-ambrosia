@@ -9,10 +9,12 @@ import {
 import type { HealthV1 } from '@ambrosia/contracts';
 import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
+import { ReportingConsumerService } from './reporting/consumer.service';
 class DependenciesDto {
   @ApiProperty() database!: boolean;
   @ApiProperty() nats!: boolean;
   @ApiProperty() jwks!: boolean;
+  @ApiProperty() reporting!: boolean;
 }
 class HealthDto {
   @ApiProperty({ example: 'finance-reporting-service' }) service!: string;
@@ -28,6 +30,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly events: EventBusService,
     private readonly verifier: JwtVerifier,
+    private readonly reporting: ReportingConsumerService,
   ) {}
   @Public()
   @Get('live')
@@ -51,10 +54,18 @@ export class HealthController {
     ]);
     const result: HealthV1 = {
       ...this.live(),
-      status: database && nats && jwks ? 'ok' : 'unavailable',
-      dependencies: { database, nats, jwks },
+      status:
+        database && nats && jwks && this.reporting.isReady()
+          ? 'ok'
+          : 'unavailable',
+      dependencies: {
+        database,
+        nats,
+        jwks,
+        reporting: this.reporting.isReady(),
+      },
     };
-    if (!database || !nats || !jwks)
+    if (!database || !nats || !jwks || !this.reporting.isReady())
       throw new ServiceUnavailableException(result);
     return result;
   }

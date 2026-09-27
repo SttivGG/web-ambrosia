@@ -57,3 +57,9 @@ Antes de actualizar datos ejecutar pnpm finance:prepare -- --migrate: respalda a
 ## Migraciones de costeo — Fase 7
 
 Aplicar primero `node scripts/prepare-production.mjs --migrate` para Inventory/Production y después `pnpm finance:prepare -- --migrate` para Finance. Inventory deja nulo el valor de todo saldo histórico positivo y solo inicializa en cero los saldos vacíos; la operación de valoración inicial se realiza después por API. Production y Finance agregan columnas de instantánea nullable, por lo que los hechos históricos no se reinterpretan. Los procedimientos ensayan instalación limpia, actualización, concurrencia y deploy repetido antes de aplicar a `public`.
+
+## Migraciones de Reporting — Fase 8A
+
+Inventory aplica '202609270001_reporting_snapshots', que agrega snapshots nullable a movimientos existentes sin reinterpretarlos. Finance/Reporting aplica '202609270001_reporting_infrastructure', que crea exclusivamente tablas e índices derivados. Ambos jobs de migración existentes siguen siendo repetibles; no se agrega contenedor, base, usuario ni puerto.
+
+El stream 'AMBROSIA_REPORTING' se crea idempotentemente al iniciar el consumidor de Reporting y permanece en el volumen JetStream. Los publicadores de los tres dominios reintentan sin bloquear operaciones. 'finance-reporting-service' necesita su URL y credencial privada existentes hacia Inventory para reconciliación; '/api/v1/internal/reporting/*' continúa bloqueada por la regla general de rutas internas del gateway.
