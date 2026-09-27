@@ -102,6 +102,8 @@ model ProductionYield {
  yieldPercentage Decimal @db.Decimal(24,10)
  wasteQuantity Decimal @db.Decimal(24,10)
  wastePercentage Decimal @db.Decimal(24,10)
+ totalCost Decimal? @db.Decimal(48,18)
+ unitCost Decimal? @db.Decimal(48,18)
  baseUnit String @db.VarChar(20)
  occurredAt DateTime @db.Timestamptz(3)
  actorId String @db.Uuid
@@ -129,8 +131,14 @@ model PackagingOperation {
  unitsPackaged Decimal @db.Decimal(24,10)
  productQuantityPerUnit Decimal @db.Decimal(24,10)
  productQuantityUsed Decimal @db.Decimal(24,10)
+ packagingWasteQuantity Decimal @default(0) @db.Decimal(24,10)
+ packagingWasteReason String? @db.VarChar(500)
  baseUnit String @db.VarChar(20)
  materials Json
+ bulkProductCost Decimal? @db.Decimal(48,18)
+ packagingMaterialsCost Decimal? @db.Decimal(48,18)
+ totalCost Decimal? @db.Decimal(48,18)
+ unitCost Decimal? @db.Decimal(48,18)
  occurredAt DateTime @db.Timestamptz(3)
  actorId String @db.Uuid
  notes String? @db.VarChar(2000)

@@ -16,6 +16,8 @@ import {
 import { z } from 'zod';
 import {
   adjustmentV1Schema,
+  initialValuationInputV1Schema,
+  initialValuationV1Schema,
   movementV1Schema,
   movementListV1Schema,
   stockV1Schema,
@@ -56,5 +58,15 @@ export class StockController {
   @responses(movementV1Schema, 'inventory.write', 201)
   adjust(@Body() value: unknown, @CurrentAuth() auth: AuthContext) {
     return this.service.adjust(parse(adjustmentV1Schema, value), auth.subject);
+  }
+  @Post('valuations/initial')
+  @RequirePermissions('inventory.write')
+  @body(initialValuationInputV1Schema)
+  @responses(initialValuationV1Schema, 'inventory.write', 201)
+  initialValuation(@Body() value: unknown, @CurrentAuth() auth: AuthContext) {
+    return this.service.initialValuation(
+      parse(initialValuationInputV1Schema, value),
+      auth.subject,
+    );
   }
 }

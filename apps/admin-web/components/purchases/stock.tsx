@@ -6,8 +6,11 @@ import {
   movementListV1Schema,
   movementV1Schema,
   adjustmentV1Schema,
+  initialValuationInputV1Schema,
+  initialValuationV1Schema,
   categoryListV1Schema,
   type SupplierItemV1,
+  type StockV1,
 } from '@ambrosia/contracts';
 import { useSession } from '../auth/session-provider';
 import { ItemSelector } from '../suppliers/suppliers';
@@ -21,7 +24,137 @@ import {
   date,
   types,
   message,
+  cop,
 } from './common';
+function InitialValuation({
+  stock,
+  close,
+  done,
+}: {
+  stock: StockV1;
+  close(): void;
+  done(): void;
+}) {
+  const [unitCost, setUnitCost] = useState(''),
+    [reason, setReason] = useState(''),
+    [confirm, setConfirm] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const operationId = useRef(crypto.randomUUID()),
+    lock = useRef(false);
+  return (
+    <Modal
+      title="Valoración inicial de inventario"
+      close={() => !lock.current && close()}
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const parsed = initialValuationInputV1Schema.safeParse({
+            operationId: operationId.current,
+            itemId: stock.itemId,
+            quantity: stock.quantity,
+            unitCost,
+            occurredAt: new Date().toISOString(),
+            reason,
+          });
+          if (!parsed.success) {
+            setError(
+              'Indica un costo unitario Decimal no negativo y un motivo de 3 a 500 caracteres.',
+            );
+            return;
+          }
+          if (!confirm) {
+            setConfirm(true);
+            setError('');
+            return;
+          }
+          if (lock.current) return;
+          lock.current = true;
+          setBusy(true);
+          setError('');
+          try {
+            await purchaseRequest(
+              'inventory/valuations/initial',
+              initialValuationV1Schema,
+              'POST',
+              parsed.data,
+            );
+            done();
+          } catch (cause) {
+            setError(message(cause));
+          } finally {
+            lock.current = false;
+            setBusy(false);
+          }
+        }}
+      >
+        <ErrorBox text={error} />
+        <p>
+          <strong>{stock.item.name}</strong> · {stock.quantity}{' '}
+          {units[stock.baseUnit]}
+        </p>
+        <p>La cantidad se toma del saldo actual y no se modificará.</p>
+        <fieldset disabled={busy || confirm} className="supplier-fields">
+          <label>
+            Costo unitario declarado (COP)
+            <input
+              inputMode="decimal"
+              required
+              value={unitCost}
+              onChange={(event) => setUnitCost(event.target.value)}
+              maxLength={49}
+            />
+          </label>
+          <label>
+            Motivo de la valoración
+            <textarea
+              minLength={3}
+              maxLength={500}
+              required
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+        </fieldset>
+        {confirm && (
+          <div className="catalog-conflict" role="status">
+            <h3>Confirmar valoración inicial</h3>
+            <p>
+              {stock.quantity} {units[stock.baseUnit]} a {cop(unitCost)} por
+              unidad.
+            </p>
+            <p>
+              Este hecho quedará inmutable y cualquier corrección deberá ser
+              compensatoria.
+            </p>
+          </div>
+        )}
+        <div className="supplier-actions">
+          <button type="submit" disabled={busy}>
+            {busy
+              ? 'Registrando…'
+              : confirm
+                ? 'Confirmar valoración'
+                : 'Revisar valoración'}
+          </button>
+          {confirm && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirm(false)}
+            >
+              Volver a editar
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={close}>
+            Cerrar
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 function Adjustment({ close, done }: { close(): void; done(): void }) {
   const [items, setItems] = useState<SupplierItemV1[]>([]),
     [type, setType] = useState<'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT'>(
@@ -167,7 +300,8 @@ export function Stocks() {
     [categoryPage, setCategoryPage] = useState(1),
     [page, setPage] = useState(1),
     [revision, setRevision] = useState(0),
-    [adjust, setAdjust] = useState(false);
+    [adjust, setAdjust] = useState(false),
+    [valuation, setValuation] = useState<StockV1 | null>(null);
   const result = useList(
     'inventory/stocks?' +
       new URLSearchParams({
@@ -279,10 +413,29 @@ export function Stocks() {
                         Existencia: {r.quantity} {units[r.baseUnit]}
                       </strong>
                     </p>
+                    {r.valuationStatus === 'VALUED' ? (
+                      <p>
+                        Valor: <strong>{cop(r.inventoryValue!)}</strong> ·
+                        Promedio: {cop(r.averageUnitCost!)} por{' '}
+                        {units[r.baseUnit]}
+                      </p>
+                    ) : r.valuationStatus === 'UNVALUED' ? (
+                      <p role="status">Pendiente de valoración inicial</p>
+                    ) : (
+                      <p>Sin existencias; no requiere valoración.</p>
+                    )}
                   </div>
-                  <Link href={'/inventario/movimientos?itemId=' + r.itemId}>
-                    Ver historial
-                  </Link>
+                  <div className="supplier-actions">
+                    {permissions.includes('inventory.write') &&
+                      r.valuationStatus === 'UNVALUED' && (
+                        <button onClick={() => setValuation(r)}>
+                          Registrar valoración
+                        </button>
+                      )}
+                    <Link href={'/inventario/movimientos?itemId=' + r.itemId}>
+                      Ver historial
+                    </Link>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -302,6 +455,16 @@ export function Stocks() {
           close={() => setAdjust(false)}
           done={() => {
             setAdjust(false);
+            setRevision(revision + 1);
+          }}
+        />
+      )}
+      {valuation && (
+        <InitialValuation
+          stock={valuation}
+          close={() => setValuation(null)}
+          done={() => {
+            setValuation(null);
             setRevision(revision + 1);
           }}
         />
@@ -466,6 +629,20 @@ export function Movements({ initialItemId = '' }: { initialItemId?: string }) {
                         · Referencia: {r.reference}
                       </p>
                       <p>Motivo: {r.reason}</p>
+                      {r.totalCost !== null && (
+                        <p>
+                          Costo transferido: <strong>{cop(r.totalCost)}</strong>{' '}
+                          · Costo unitario: {cop(r.unitCost!)}
+                        </p>
+                      )}
+                      {r.inventoryValueAfter !== null && (
+                        <p>
+                          Valor posterior: {cop(r.inventoryValueAfter)}
+                          {r.averageUnitCostAfter !== null
+                            ? ` · Promedio posterior: ${cop(r.averageUnitCostAfter)}`
+                            : ''}
+                        </p>
+                      )}
                       <details>
                         <summary>Trazabilidad</summary>
                         <p>Movimiento: {r.id}</p>

@@ -174,7 +174,12 @@ describe('Servicios (dobles unitarios)', () => {
       },
       purchase: { findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
       inventoryBalance: {
-        upsert: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({
+          quantity: new Prisma.Decimal(0),
+          inventoryValue: new Prisma.Decimal(0),
+          averageUnitCost: null,
+        }),
+        update: vi.fn(),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
       inventoryMovement: { findUnique: vi.fn(), create: vi.fn() },
@@ -288,11 +293,7 @@ describe('Servicios (dobles unitarios)', () => {
       expect.any(Function),
       expect.objectContaining({ isolationLevel: 'Serializable' }),
     );
-    expect(tx.inventoryBalance.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { itemId, quantity: { gte: new Prisma.Decimal(8) } },
-      }),
-    );
+    expect(tx.inventoryBalance.update).not.toHaveBeenCalled();
   });
   it('clave de ajuste repetida no altera saldo', async () => {
     const { tx, stock } = setup();

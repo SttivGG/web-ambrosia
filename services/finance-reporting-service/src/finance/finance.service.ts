@@ -50,6 +50,10 @@ const saleInclude = {
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
   },
 };
+const CostDecimal = Prisma.Decimal.clone({
+  precision: 80,
+  rounding: Prisma.Decimal.ROUND_HALF_UP,
+});
 type SaleRow = Prisma.SaleGetPayload<{ include: typeof saleInclude }>;
 const movementDTO = (row: MovementRow) =>
   financeMovementV1Schema.parse({
@@ -75,6 +79,9 @@ const saleDTO = (row: SaleRow) =>
     ...row,
     subtotal: row.subtotal.toFixed(2),
     total: row.total.toFixed(2),
+    costOfGoodsSold: row.costOfGoodsSold?.toFixed() ?? null,
+    grossMargin: row.grossMargin?.toFixed() ?? null,
+    grossMarginPercent: row.grossMarginPercent?.toFixed() ?? null,
     occurredAt: row.occurredAt.toISOString(),
     confirmedAt: row.confirmedAt?.toISOString() ?? null,
     cancelledAt: row.cancelledAt?.toISOString() ?? null,
@@ -88,6 +95,8 @@ const saleDTO = (row: SaleRow) =>
       quantity: String(line.quantity),
       unitPrice: line.unitPrice.toFixed(2),
       subtotal: line.subtotal.toFixed(2),
+      unitCost: line.unitCost?.toFixed() ?? null,
+      costSubtotal: line.costSubtotal?.toFixed() ?? null,
     })),
     operations: row.operations.map((operation) => ({
       id: operation.id,
@@ -707,6 +716,36 @@ export class FinanceService implements OnModuleInit, OnModuleDestroy {
             throw new FinanceError('NOT_FOUND', 404, 'Venta no encontrada.');
           if (result.status === 'CONFIRMED') {
             if (operation.kind === 'CONFIRM') {
+              if (
+                result.totalCost === null ||
+                result.lineCosts.length !== payload.lines.length
+              )
+                throw new FinanceError(
+                  'INVENTORY_UNAVAILABLE',
+                  503,
+                  'Inventory no devolvió el costo confirmado de todos los productos.',
+                );
+              const cost = new CostDecimal(result.totalCost);
+              const margin = new CostDecimal(sale.total.toFixed()).minus(cost);
+              const marginPercent = margin
+                .div(sale.total)
+                .mul(100)
+                .toDecimalPlaces(10);
+              for (const lineCost of result.lineCosts) {
+                const changed = await tx.saleLine.updateMany({
+                  where: { saleId: sale.id, itemId: lineCost.itemId },
+                  data: {
+                    unitCost: lineCost.unitCost,
+                    costSubtotal: lineCost.totalCost,
+                  },
+                });
+                if (changed.count !== 1)
+                  throw new FinanceError(
+                    'INVENTORY_UNAVAILABLE',
+                    503,
+                    'Inventory devolvió un artículo incompatible con la venta.',
+                  );
+              }
               await tx.financeMovement.create({
                 data: {
                   operationId: operation.id,
@@ -727,6 +766,9 @@ export class FinanceService implements OnModuleInit, OnModuleDestroy {
                 data: {
                   status: 'CONFIRMED',
                   confirmedAt: new Date(),
+                  costOfGoodsSold: cost,
+                  grossMargin: margin,
+                  grossMarginPercent: marginPercent,
                   version: { increment: 1 },
                 },
               });

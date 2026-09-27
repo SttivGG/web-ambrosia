@@ -10,6 +10,10 @@ import { PrismaService } from '../prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { StockService } from '../purchases/stock.service';
 import { PurchaseError, databaseError, parse } from '../purchases/domain';
+const CostDecimal = Prisma.Decimal.clone({
+  precision: 80,
+  rounding: Prisma.Decimal.ROUND_HALF_UP,
+});
 @Injectable()
 export class ProductionStockService {
   constructor(
@@ -61,6 +65,7 @@ export class ProductionStockService {
             status: 'CONFIRMED',
             error: null,
             movements: [],
+            costs: null,
           };
           type Line = {
             itemId: string;
@@ -76,7 +81,13 @@ export class ProductionStockService {
             data.kind === 'YIELD'
               ? [{ ...data.output, type: 'PRODUCTION_IN' }]
               : [
-                  { ...data.source, type: 'PRODUCTION_OUT' },
+                  {
+                    ...data.source,
+                    quantity: new Prisma.Decimal(data.source.quantity)
+                      .plus(data.wasteQuantity)
+                      .toFixed(),
+                    type: 'PRODUCTION_OUT',
+                  },
                   ...data.materials.map((line) => ({
                     ...line,
                     type: 'PACKAGING_OUT' as const,
@@ -221,17 +232,99 @@ export class ProductionStockService {
             },
           });
           if (result.status === 'CONFIRMED') {
-            for (const line of lines)
-              result.movements.push(
-                await this.stock.record(tx, {
+            if (data.kind === 'YIELD') {
+              const consumed = await tx.inventoryMovement.findMany({
+                where: {
+                  productionOperation: {
+                    productionId: data.productionId,
+                    kind: 'CONSUME',
+                  },
+                  type: 'PRODUCTION_OUT',
+                },
+              });
+              if (
+                !consumed.length ||
+                consumed.some((movement) => movement.totalCost === null)
+              )
+                throw new PurchaseError(
+                  'INITIAL_VALUATION_REQUIRED',
+                  409,
+                  'Los insumos del lote deben estar valorados antes de confirmar el rendimiento.',
+                );
+              const totalCost = consumed.reduce(
+                (sum, movement) => sum.plus(movement.totalCost!.toFixed()),
+                new CostDecimal(0),
+              );
+              const movement = await this.stock.record(tx, {
+                ...lines[0]!,
+                totalCost: totalCost.toFixed(),
+                origin: 'PRODUCTION',
+                reference: data.productionId,
+                reason: data.reason,
+                actorId: data.actorId,
+                productionOperationId: data.operationId,
+              });
+              result.movements.push(movement);
+              result.costs = {
+                totalCost: movement.totalCost!,
+                unitCost: movement.unitCost,
+                bulkProductCost: null,
+                packagingMaterialsCost: null,
+              };
+            } else {
+              const outgoing = [
+                {
+                  ...data.source,
+                  quantity: new CostDecimal(data.source.quantity)
+                    .plus(data.wasteQuantity)
+                    .toFixed(),
+                  type: 'PRODUCTION_OUT' as const,
+                },
+                ...data.materials.map((line) => ({
+                  ...line,
+                  baseUnit: 'UNIT' as const,
+                  type: 'PACKAGING_OUT' as const,
+                })),
+              ];
+              const costs = [];
+              for (const line of outgoing) {
+                const movement = await this.stock.record(tx, {
                   ...line,
                   origin: 'PRODUCTION',
                   reference: data.productionId,
                   reason: data.reason,
                   actorId: data.actorId,
                   productionOperationId: data.operationId,
-                }),
-              );
+                });
+                costs.push(movement);
+                result.movements.push(movement);
+              }
+              const bulkCost = new CostDecimal(costs[0]!.totalCost!);
+              const materialsCost = costs
+                .slice(1)
+                .reduce(
+                  (sum, movement) => sum.plus(movement.totalCost!),
+                  new CostDecimal(0),
+                );
+              const totalCost = bulkCost.plus(materialsCost);
+              const output = await this.stock.record(tx, {
+                ...data.output,
+                type: 'PACKAGED_PRODUCT_IN',
+                totalCost: totalCost.toFixed(),
+                origin: 'PRODUCTION',
+                reference: data.productionId,
+                reason: data.reason,
+                actorId: data.actorId,
+                productionOperationId: data.operationId,
+              });
+              result.movements.push(output);
+              result.costs = {
+                totalCost: output.totalCost!,
+                unitCost: output.unitCost,
+                bulkProductCost: bulkCost.toFixed(),
+                packagingMaterialsCost: materialsCost.toFixed(),
+              };
+            }
             await tx.productionStockOperation.update({
               where: { id: data.operationId },
               data: { result: result as unknown as Prisma.InputJsonValue },
@@ -282,6 +375,7 @@ export class ProductionStockService {
             status: 'CONFIRMED',
             error: null,
             movements: [],
+            costs: null,
           };
           const previous = await tx.productionStockOperation.findMany({
             where: { productionId: data.productionId },
@@ -403,10 +497,23 @@ export class ProductionStockService {
                         reversesId: originals.find(
                           (m) => m.itemId === line.itemId,
                         )!.id,
+                        totalCost: originals
+                          .find((m) => m.itemId === line.itemId)!
+                          .totalCost?.toFixed(),
                       }
                     : {}),
                 }),
               );
+            const totalCost = result.movements.reduce(
+              (sum, movement) => sum.plus(movement.totalCost ?? '0'),
+              new CostDecimal(0),
+            );
+            result.costs = {
+              totalCost: totalCost.toFixed(),
+              unitCost: null,
+              bulkProductCost: null,
+              packagingMaterialsCost: null,
+            };
             await tx.productionStockOperation.update({
               where: { id: data.operationId },
               data: { result: result as unknown as Prisma.InputJsonValue },

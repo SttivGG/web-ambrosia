@@ -30,6 +30,12 @@ export const moneyV1Schema = z
     /^(0|[1-9]\d{0,21})(\.\d{1,2})?$/,
     'Usa hasta 22 enteros y dos decimales.',
   );
+export const costDecimalV1Schema = z
+  .string()
+  .regex(
+    /^(0|[1-9]\d{0,29})(\.\d{1,18})?$/,
+    'Usa un Decimal no negativo de hasta 18 decimales.',
+  );
 export const purchaseLineInputV1Schema = z
   .object({
     itemId: z.string().uuid(),
@@ -99,6 +105,16 @@ export const adjustmentV1Schema = z
     operationId: z.string().uuid(),
   })
   .strict();
+export const initialValuationInputV1Schema = z
+  .object({
+    operationId: z.string().uuid(),
+    itemId: z.string().uuid(),
+    quantity: quantityV1Schema,
+    unitCost: costDecimalV1Schema,
+    occurredAt: z.string().datetime(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict();
 const itemSummary = z.object({
   id: z.string().uuid(),
   sku: z.string(),
@@ -140,6 +156,10 @@ export const movementV1Schema = z.object({
   item: itemSummary,
   type: z.enum(MOVEMENT_TYPES_V1),
   quantity: quantityV1Schema,
+  unitCost: costDecimalV1Schema.nullable().default(null),
+  totalCost: costDecimalV1Schema.nullable().default(null),
+  inventoryValueAfter: costDecimalV1Schema.nullable().default(null),
+  averageUnitCostAfter: costDecimalV1Schema.nullable().default(null),
   baseUnit: z.enum(BASE_UNITS_V1),
   origin: z.enum(['PURCHASE', 'MANUAL', 'PRODUCTION', 'SALE']),
   reference: z.string(),
@@ -158,7 +178,22 @@ export const stockV1Schema = z.object({
   category: z.object({ id: z.string().uuid(), name: z.string() }),
   baseUnit: z.enum(BASE_UNITS_V1),
   quantity: decimalV1Schema,
+  valuationStatus: z.enum(['VALUED', 'UNVALUED', 'EMPTY']).default('UNVALUED'),
+  inventoryValue: costDecimalV1Schema.nullable().default(null),
+  averageUnitCost: costDecimalV1Schema.nullable().default(null),
   active: z.boolean(),
+});
+export const initialValuationV1Schema = z.object({
+  id: z.string().uuid(),
+  operationId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  quantity: quantityV1Schema,
+  unitCost: costDecimalV1Schema,
+  totalCost: costDecimalV1Schema,
+  occurredAt: z.string().datetime(),
+  actorId: z.string().uuid(),
+  reason: z.string(),
+  createdAt: z.string().datetime(),
 });
 export const purchaseListV1Schema = z.object({
   data: z.array(purchaseV1Schema),
@@ -185,6 +220,7 @@ export const PURCHASE_ERROR_CODES_V1 = [
   'DUPLICATE_OPERATION',
   'INSUFFICIENT_STOCK',
   'DECIMAL_OVERFLOW',
+  'INITIAL_VALUATION_REQUIRED',
   'PURCHASE_UNAVAILABLE',
   'INTERNAL_ERROR',
 ] as const;
@@ -202,3 +238,7 @@ export type StockFiltersV1 = z.infer<typeof stockFiltersV1Schema>;
 export type AdjustmentV1 = z.infer<typeof adjustmentV1Schema>;
 export type MovementV1 = z.infer<typeof movementV1Schema>;
 export type StockV1 = z.infer<typeof stockV1Schema>;
+export type InitialValuationInputV1 = z.infer<
+  typeof initialValuationInputV1Schema
+>;
+export type InitialValuationV1 = z.infer<typeof initialValuationV1Schema>;

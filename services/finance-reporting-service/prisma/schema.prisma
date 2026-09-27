@@ -135,6 +135,9 @@ model Sale {
   status             SaleStatus        @default(PENDING)
   subtotal           Decimal           @db.Decimal(24, 2)
   total              Decimal           @db.Decimal(24, 2)
+  costOfGoodsSold    Decimal?           @db.Decimal(48, 18)
+  grossMargin        Decimal?           @db.Decimal(48, 18)
+  grossMarginPercent Decimal?           @db.Decimal(24, 10)
   currency           String            @default("COP") @db.VarChar(3)
   paymentMethod      PaymentMethod
   occurredAt         DateTime          @db.Timestamptz(3)
@@ -165,6 +168,8 @@ model SaleLine {
   quantity  Int
   unitPrice Decimal @db.Decimal(24, 2)
   subtotal  Decimal @db.Decimal(24, 2)
+  unitCost  Decimal? @db.Decimal(48, 18)
+  costSubtotal Decimal? @db.Decimal(48, 18)
 
   @@unique([saleId, itemId])
   @@index([itemId])

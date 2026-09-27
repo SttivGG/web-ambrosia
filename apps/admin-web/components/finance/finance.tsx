@@ -993,6 +993,15 @@ function Sales({
                       .join(', ')}
                   </p>
                   <strong>{cop(row.total)}</strong>
+                  {row.costOfGoodsSold !== null && (
+                    <div>
+                      <p>COGS: {cop(row.costOfGoodsSold)}</p>
+                      <p>
+                        <strong>Margen bruto: {cop(row.grossMargin!)}</strong> ·{' '}
+                        {row.grossMarginPercent}%
+                      </p>
+                    </div>
+                  )}
                   {row.operations.map(
                     (operation) =>
                       operation.status === 'PENDING' && (

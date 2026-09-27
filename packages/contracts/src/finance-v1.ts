@@ -4,7 +4,7 @@ import {
   paginationV1Schema,
   versionV1Schema,
 } from './catalog-v1';
-import { moneyV1Schema } from './purchase-v1';
+import { costDecimalV1Schema, moneyV1Schema } from './purchase-v1';
 export const ACCOUNT_TYPES_V1 = ['CASH', 'BANK', 'OTHER'] as const;
 export const PAYMENT_METHODS_V1 = [
   'CASH',
@@ -286,6 +286,17 @@ export const saleStockResultV1Schema = z.object({
   status: z.enum(['CONFIRMED', 'REJECTED']),
   error: z.string().nullable(),
   movements: z.array(id),
+  totalCost: costDecimalV1Schema.nullable().default(null),
+  lineCosts: z
+    .array(
+      z.object({
+        itemId: id,
+        quantity: z.string(),
+        unitCost: costDecimalV1Schema,
+        totalCost: costDecimalV1Schema,
+      }),
+    )
+    .default([]),
 });
 export const saleableItemV1Schema = z.object({
   id,
@@ -308,6 +319,9 @@ export const saleV1Schema = z.object({
   status: z.enum(SALE_STATUSES_V1),
   subtotal: moneyV1Schema,
   total: moneyV1Schema,
+  costOfGoodsSold: costDecimalV1Schema.nullable(),
+  grossMargin: z.string().nullable(),
+  grossMarginPercent: z.string().nullable(),
   currency: z.literal('COP'),
   paymentMethod: z.enum(PAYMENT_METHODS_V1),
   occurredAt: z.string().datetime(),
@@ -326,6 +340,8 @@ export const saleV1Schema = z.object({
       sku: z.string(),
       name: z.string(),
       subtotal: moneyV1Schema,
+      unitCost: costDecimalV1Schema.nullable(),
+      costSubtotal: costDecimalV1Schema.nullable(),
     }),
   ),
   operations: z.array(

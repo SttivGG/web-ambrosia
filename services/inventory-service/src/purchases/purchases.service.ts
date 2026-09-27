@@ -240,6 +240,7 @@ export class PurchasesService {
           reason: 'Recepción de compra',
           actorId,
           purchaseLineId: l.id,
+          totalCost: l.subtotal.toFixed(2),
         });
       return purchaseDTO(await this.row(tx, id));
     });
@@ -285,6 +286,7 @@ export class PurchasesService {
             actorId,
             purchaseLineId: l.id,
             reversesId: original.id,
+            totalCost: original.totalCost?.toFixed() ?? l.subtotal.toFixed(2),
           });
         }
       }

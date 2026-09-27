@@ -90,7 +90,7 @@ try {
     const {StockService}=require('./dist/purchases/stock.service');const {randomUUID}=require('node:crypto');
     const category=await db.category.create({data:{name:input.prefix,normalizedName:input.prefix.toLowerCase(),slug:input.prefix.toLowerCase()}});
     const item=await db.catalogItem.create({data:{sku:input.prefix,normalizedSku:input.prefix,name:input.prefix+' Yogurt',normalizedName:(input.prefix+' yogurt').toLowerCase(),itemType:'FINISHED_PRODUCT',categoryId:category.id,inventoryBaseUnit:'UNIT',defaultOperationUnit:'UNIT'}});
-    const stock=new StockService(db);await stock.adjust({itemId:item.id,type:'ADJUSTMENT_IN',quantity:'3',reason:'Fixture Fase 6',operationId:randomUUID()},input.actorId);
+    const stock=new StockService(db);await stock.adjust({itemId:item.id,type:'ADJUSTMENT_IN',quantity:'3',reason:'Fixture Fase 6',operationId:randomUUID()},input.actorId);await stock.initialValuation({operationId:randomUUID(),itemId:item.id,quantity:'3',unitCost:'1000',occurredAt:new Date().toISOString(),reason:'Valoración inicial del producto vendible'},input.actorId);
     const supplier=await db.supplier.create({data:{code:input.prefix,name:input.prefix+' Proveedor'}});
     const purchase=await db.purchase.create({data:{supplierId:supplier.id,reference:input.prefix,purchasedAt:new Date(),status:'RECEIVED',subtotal:'10000',total:'10000',receivedAt:new Date(),lines:{create:{itemId:item.id,quantity:'1',unitCost:'10000',subtotal:'10000',baseUnit:'UNIT'}}}});
     console.log(JSON.stringify({categoryId:category.id,itemId:item.id,supplierId:supplier.id,purchaseId:purchase.id}));`,
@@ -306,6 +306,7 @@ try {
       const operations=await db.saleStockOperation.findMany({where:{saleId:{in:input.saleIds}},select:{id:true}});const operationIds=operations.map(row=>row.id);
       await db.inventoryMovement.deleteMany({where:{itemId:input.itemId}});
       await db.saleStockOperation.deleteMany({where:{id:{in:operationIds}}});
+      await db.initialInventoryValuation.deleteMany({where:{itemId:input.itemId}});
       await db.inventoryBalance.deleteMany({where:{itemId:input.itemId}});
       await db.purchaseLine.deleteMany({where:{purchaseId:input.purchaseId}});
       await db.purchase.deleteMany({where:{id:input.purchaseId}});

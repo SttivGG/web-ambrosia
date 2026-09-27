@@ -13,6 +13,7 @@ const results = [],
   users = [];
 let browser,
   stage = 'inicio';
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function compose(...args) {
   const r = spawnSync(
     'docker',
@@ -45,26 +46,54 @@ async function ready() {
   throw Error('Identity no recuperada');
 }
 async function status(path, expected, headers = {}) {
-  const r = await fetch(base + path, { headers, redirect: 'manual' });
+  const r = await fetch(base + path, {
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(6000),
+  });
   assert.equal(r.status, expected, 'Estado HTTP ' + path);
   return r;
 }
+async function waitForStatus(path, expected, headers = {}) {
+  let last = 'network';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const response = await fetch(base + path, {
+        headers,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(3000),
+      });
+      last = response.status;
+      if (last === expected) return response;
+      if (![502, 503, 504].includes(last)) break;
+    } catch {
+      last = 'network';
+    }
+    await delay(250);
+  }
+  assert.equal(last, expected, 'Estado HTTP estable ' + path);
+}
 try {
+  stage = 'inicio de navegador';
   browser = await chromium.launch({
     headless: true,
     executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,
   });
   for (const route of routes) {
+    stage = 'readiness anónimo de ' + route;
+    await waitForStatus('/api/' + route + '/health/ready', 200);
+    stage = 'health anónimo de ' + route;
     await status('/api/' + route + '/health/live', 200);
-    await status('/api/' + route + '/health/ready', 200);
     for (const suffix of [
       'docs/',
       'docs-json',
       'docs-yaml',
       'docs/swagger-ui.css',
       'docs/swagger-ui-init.js',
-    ])
-      await status('/api/' + route + '/' + suffix, 401);
+    ]) {
+      stage = 'Swagger anónimo ' + route + '/' + suffix;
+      await waitForStatus('/api/' + route + '/' + suffix, 401);
+    }
   }
   pass('Health público; UI, JSON, YAML y assets Swagger anónimos 401');
   for (const role of ['OWNER', 'ADMIN', 'OPERATOR', 'VIEWER']) {

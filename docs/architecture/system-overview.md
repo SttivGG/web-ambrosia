@@ -67,3 +67,7 @@ Production añade resultados físicos y operaciones de envasado versionadas. Inv
 ## Finanzas (Fase 6)
 
 Finance controla cuentas, ledger monetario, pagos y ventas en ambrosia_finance_reports. Inventory expone por HTTP interno una instantánea de compra y operaciones idempotentes de salida/retorno de venta; no comparte tablas ni Prisma. Finance persiste el UUID y estado pendiente antes del llamado, confirma dinero después del resultado y recupera con el mismo UUID. La credencial Finance–Inventory es independiente y el gateway bloquea rutas internas. Ver ADR-012.
+
+## Costeo e informes (Fase 7)
+
+Inventory amplía su mismo ledger con valor, costo unitario y promedio ponderado móvil; las existencias históricas positivas requieren valoración inicial explícita. Production recibe y conserva instantáneas no autoritativas del costo real de lote, granel y envasado. Finance recibe COGS confirmado por Inventory y deriva margen bruto. No se agregan bases, servicios, eventos, transacciones distribuidas ni accesos cruzados. Ver ADR-013.

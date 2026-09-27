@@ -53,3 +53,7 @@ Fase 5 conserva los mismos jobs, bases, credencial y ocho contenedores. El proce
 Ejecutar pnpm finance:key:generate. Solo Inventory y Finance reciben FINANCE_INVENTORY_TOKEN; Finance usa INVENTORY_INTERNAL_URL privado. finance-migrate aplica 202609260001_finance antes del servicio e inventory-migrate aplica 202609260001_sales_inventory. Siguen siendo ocho contenedores permanentes y solo gateway publica 8080.
 
 Antes de actualizar datos ejecutar pnpm finance:prepare -- --migrate: respalda ambas bases, verifica los dumps, ensaya clean/upgrade y deploy repetido en schemas aislados, prueba carreras y compara los datos previos. No borrar volúmenes.
+
+## Migraciones de costeo — Fase 7
+
+Aplicar primero `node scripts/prepare-production.mjs --migrate` para Inventory/Production y después `pnpm finance:prepare -- --migrate` para Finance. Inventory deja nulo el valor de todo saldo histórico positivo y solo inicializa en cero los saldos vacíos; la operación de valoración inicial se realiza después por API. Production y Finance agregan columnas de instantánea nullable, por lo que los hechos históricos no se reinterpretan. Los procedimientos ensayan instalación limpia, actualización, concurrencia y deploy repetido antes de aplicar a `public`.

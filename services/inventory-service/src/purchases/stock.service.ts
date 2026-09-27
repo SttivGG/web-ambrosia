@@ -1,9 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   adjustmentV1Schema,
+  initialValuationInputV1Schema,
+  initialValuationV1Schema,
   movementV1Schema,
   stockV1Schema,
   type AdjustmentV1,
+  type InitialValuationInputV1,
   type MovementFiltersV1,
   type StockFiltersV1,
 } from '@ambrosia/contracts';
@@ -23,6 +26,10 @@ export const movementDTO = (r: MovementRow) =>
   movementV1Schema.parse({
     ...r,
     quantity: r.quantity.toFixed(),
+    unitCost: r.unitCost?.toFixed() ?? null,
+    totalCost: r.totalCost?.toFixed() ?? null,
+    inventoryValueAfter: r.inventoryValueAfter?.toFixed() ?? null,
+    averageUnitCostAfter: r.averageUnitCostAfter?.toFixed() ?? null,
     occurredAt: r.occurredAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
     purchaseId: r.purchaseLine?.purchaseId ?? null,
@@ -37,6 +44,14 @@ const stockDTO = (
     category: r.category,
     baseUnit: r.inventoryBaseUnit,
     quantity: r.balance?.quantity.toFixed() ?? '0',
+    valuationStatus:
+      !r.balance || r.balance.quantity.isZero()
+        ? 'EMPTY'
+        : r.balance.inventoryValue === null
+          ? 'UNVALUED'
+          : 'VALUED',
+    inventoryValue: r.balance?.inventoryValue?.toFixed() ?? null,
+    averageUnitCost: r.balance?.averageUnitCost?.toFixed() ?? null,
     active: r.active,
   });
 type Entry = {
@@ -53,7 +68,14 @@ type Entry = {
   purchaseLineId?: string;
   reversesId?: string;
   operationId?: string;
+  totalCost?: string;
 };
+const Exact = Prisma.Decimal.clone({
+  precision: 80,
+  rounding: Prisma.Decimal.ROUND_HALF_UP,
+});
+const persistedCost = (value: Prisma.Decimal) =>
+  value.toDecimalPlaces(18).toFixed();
 @Injectable()
 export class StockService {
   constructor(@Inject(PrismaService) private readonly db: PrismaService) {}
@@ -89,7 +111,7 @@ export class StockService {
   }
   // Caller holds ordered item locks. Balance and ledger always use the caller transaction.
   async record(tx: Prisma.TransactionClient, entry: Entry) {
-    const quantity = new Prisma.Decimal(entry.quantity);
+    const quantity = new Exact(entry.quantity);
     const incoming =
       entry.type === 'PURCHASE_IN' ||
       entry.type === 'ADJUSTMENT_IN' ||
@@ -97,46 +119,197 @@ export class StockService {
       entry.type === 'PRODUCTION_IN' ||
       entry.type === 'PACKAGED_PRODUCT_IN' ||
       entry.type === 'SALE_RETURN';
-    await tx.inventoryBalance.upsert({
+    const balance = await tx.inventoryBalance.upsert({
       where: { itemId: entry.itemId },
-      create: { itemId: entry.itemId, quantity: '0' },
+      create: { itemId: entry.itemId, quantity: '0', inventoryValue: '0' },
       update: {},
     });
+    const currentQuantity = new Exact(balance.quantity.toFixed());
+    const currentValue =
+      balance.inventoryValue === null
+        ? null
+        : new Exact(balance.inventoryValue.toFixed());
+    const nextQuantity = incoming
+      ? currentQuantity.plus(quantity)
+      : currentQuantity.minus(quantity);
+    if (nextQuantity.lt(0))
+      throw new PurchaseError(
+        'INSUFFICIENT_STOCK',
+        409,
+        'La operación dejaría existencias negativas.',
+      );
+    if (nextQuantity.gte('100000000000000'))
+      throw new PurchaseError(
+        'DECIMAL_OVERFLOW',
+        409,
+        'La existencia excedería la precisión permitida.',
+      );
+
+    let movementCost: Prisma.Decimal | null =
+      entry.totalCost === undefined ? null : new Exact(entry.totalCost);
+    let nextValue: Prisma.Decimal | null = currentValue;
+    let nextAverage: Prisma.Decimal | null = null;
     if (incoming) {
-      const maximum = new Prisma.Decimal('99999999999999.9999999999');
-      // Decimal subtraction needs 24 digits; use a local 80-digit constructor.
-      const Exact = Prisma.Decimal.clone({ precision: 80 });
-      const limit = new Exact(maximum.toFixed())
-        .minus(entry.quantity)
-        .toFixed();
-      const r = await tx.inventoryBalance.updateMany({
-        where: { itemId: entry.itemId, quantity: { lte: limit } },
-        data: { quantity: { increment: quantity } },
-      });
-      if (r.count !== 1)
+      if (
+        movementCost === null &&
+        currentValue !== null &&
+        currentQuantity.gt(0)
+      )
+        movementCost = new Exact(balance.averageUnitCost!.toFixed()).mul(
+          quantity,
+        );
+      if (movementCost !== null) {
+        if (currentQuantity.gt(0) && currentValue === null)
+          throw new PurchaseError(
+            'INITIAL_VALUATION_REQUIRED',
+            409,
+            'Registra la valoración inicial antes de aplicar costos.',
+            ['itemId'],
+          );
+        nextValue = (currentValue ?? new Exact(0)).plus(movementCost);
+      } else if (currentQuantity.isZero()) {
+        nextValue = null;
+      }
+    } else {
+      if (currentValue === null || balance.averageUnitCost === null)
+        throw new PurchaseError(
+          'INITIAL_VALUATION_REQUIRED',
+          409,
+          'Registra la valoración inicial antes de consumir existencias.',
+          ['itemId'],
+        );
+      movementCost ??= nextQuantity.isZero()
+        ? currentValue
+        : new Exact(balance.averageUnitCost.toFixed()).mul(quantity);
+      if (movementCost.gt(currentValue))
         throw new PurchaseError(
           'DECIMAL_OVERFLOW',
           409,
-          'La existencia excedería la precisión permitida.',
+          'El costo compensado excede el valor disponible.',
         );
-    } else {
-      const r = await tx.inventoryBalance.updateMany({
-        where: { itemId: entry.itemId, quantity: { gte: quantity } },
-        data: { quantity: { decrement: quantity } },
-      });
-      if (r.count !== 1)
-        throw new PurchaseError(
-          'INSUFFICIENT_STOCK',
-          409,
-          'La operación dejaría existencias negativas.',
-        );
+      nextValue = currentValue.minus(movementCost);
     }
+    if (nextQuantity.isZero()) {
+      nextValue = new Exact(0);
+      nextAverage = null;
+    } else if (nextValue !== null) {
+      nextAverage = nextValue.div(nextQuantity);
+    }
+    const storedValue = nextValue === null ? null : persistedCost(nextValue);
+    const storedAverage =
+      nextAverage === null ? null : persistedCost(nextAverage);
+    await tx.inventoryBalance.update({
+      where: { itemId: entry.itemId },
+      data: {
+        quantity: nextQuantity.toFixed(),
+        inventoryValue: storedValue,
+        averageUnitCost: storedAverage,
+      },
+    });
     return movementDTO(
       await tx.inventoryMovement.create({
-        data: entry,
+        data: {
+          ...entry,
+          totalCost: movementCost === null ? null : persistedCost(movementCost),
+          unitCost:
+            movementCost === null
+              ? null
+              : persistedCost(movementCost.div(quantity)),
+          inventoryValueAfter: storedValue,
+          averageUnitCostAfter: storedAverage,
+        },
         include: movementInclude,
       }),
     );
+  }
+  async initialValuation(input: InitialValuationInputV1, actorId: string) {
+    const data = parse(initialValuationInputV1Schema, input);
+    try {
+      return await this.db.$transaction(
+        async (tx) => {
+          const duplicate = await tx.initialInventoryValuation.findUnique({
+            where: { operationId: data.operationId },
+          });
+          if (duplicate) {
+            if (
+              duplicate.itemId !== data.itemId ||
+              duplicate.actorId !== actorId ||
+              duplicate.quantity.toFixed() !== data.quantity ||
+              duplicate.unitCost.toFixed() !==
+                new Exact(data.unitCost).toFixed() ||
+              duplicate.occurredAt.toISOString() !== data.occurredAt ||
+              duplicate.reason !== data.reason
+            )
+              throw new PurchaseError(
+                'DUPLICATE_OPERATION',
+                409,
+                'El identificador pertenece a otra valoración.',
+              );
+            return initialValuationV1Schema.parse({
+              ...duplicate,
+              quantity: duplicate.quantity.toFixed(),
+              unitCost: duplicate.unitCost.toFixed(),
+              totalCost: duplicate.totalCost.toFixed(),
+              occurredAt: duplicate.occurredAt.toISOString(),
+              createdAt: duplicate.createdAt.toISOString(),
+            });
+          }
+          const [item] = await this.lockItems(tx, [data.itemId]);
+          this.requireTracked(item!);
+          const balance = await tx.inventoryBalance.findUnique({
+            where: { itemId: data.itemId },
+          });
+          if (
+            !balance ||
+            balance.quantity.isZero() ||
+            balance.quantity.toFixed() !== data.quantity
+          )
+            throw new PurchaseError(
+              'VALIDATION_ERROR',
+              409,
+              'La cantidad declarada debe coincidir con la existencia positiva actual.',
+              ['quantity'],
+            );
+          if (balance.inventoryValue !== null)
+            throw new PurchaseError(
+              'DUPLICATE_OPERATION',
+              409,
+              'El artículo ya está valorado.',
+            );
+          const unitCost = new Exact(data.unitCost);
+          const totalCost = unitCost.mul(data.quantity);
+          const total = persistedCost(totalCost);
+          const average = persistedCost(unitCost);
+          await tx.inventoryBalance.update({
+            where: { itemId: data.itemId },
+            data: { inventoryValue: total, averageUnitCost: average },
+          });
+          const row = await tx.initialInventoryValuation.create({
+            data: {
+              ...data,
+              unitCost: average,
+              totalCost: total,
+              occurredAt: new Date(data.occurredAt),
+              actorId,
+            },
+          });
+          return initialValuationV1Schema.parse({
+            ...row,
+            quantity: row.quantity.toFixed(),
+            unitCost: row.unitCost.toFixed(),
+            totalCost: row.totalCost.toFixed(),
+            occurredAt: row.occurredAt.toISOString(),
+            createdAt: row.createdAt.toISOString(),
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 10000,
+        },
+      );
+    } catch (error) {
+      databaseError(error);
+    }
   }
   async adjust(input: AdjustmentV1, actorId: string) {
     const data = parse(adjustmentV1Schema, input);

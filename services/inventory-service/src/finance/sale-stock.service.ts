@@ -9,6 +9,10 @@ import { PrismaService } from '../prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { StockService } from '../purchases/stock.service';
 import { PurchaseError, databaseError, parse } from '../purchases/domain';
+const CostDecimal = Prisma.Decimal.clone({
+  precision: 80,
+  rounding: Prisma.Decimal.ROUND_HALF_UP,
+});
 
 @Injectable()
 export class SaleStockService {
@@ -63,6 +67,8 @@ export class SaleStockService {
             status: 'CONFIRMED',
             error: null,
             movements: [],
+            totalCost: null,
+            lineCosts: [],
           };
           let originals: Awaited<
             ReturnType<typeof tx.inventoryMovement.findMany>
@@ -171,11 +177,32 @@ export class SaleStockService {
                       reversesId: originals.find(
                         (row) => row.itemId === line.itemId,
                       )!.id,
+                      totalCost: originals
+                        .find((row) => row.itemId === line.itemId)!
+                        .totalCost?.toFixed(),
                     }
                   : {}),
               });
               result.movements.push(movement.id);
+              if (movement.totalCost === null || movement.unitCost === null)
+                throw new PurchaseError(
+                  'INITIAL_VALUATION_REQUIRED',
+                  409,
+                  'El producto debe estar valorado antes de venderse.',
+                );
+              result.lineCosts.push({
+                itemId: line.itemId,
+                quantity: line.quantity,
+                unitCost: movement.unitCost,
+                totalCost: movement.totalCost,
+              });
             }
+            result.totalCost = result.lineCosts
+              .reduce(
+                (sum, line) => sum.plus(line.totalCost),
+                new CostDecimal(0),
+              )
+              .toFixed();
             await tx.saleStockOperation.update({
               where: { id: data.operationId },
               data: { result: result as unknown as Prisma.InputJsonValue },

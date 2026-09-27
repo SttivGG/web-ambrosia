@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. Las Fases 0–6 cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado y finanzas. Fase 6 incorpora pagos y ventas manuales con coordinación recuperable e idempotente entre Finance e Inventory.
+Sistema de control de producción de yogurt griego. Las Fases 0–7 cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado, finanzas y costeo. Fase 7 incorpora promedio ponderado, costo real por lote, COGS y margen bruto sin alterar la separación entre servicios.
 
 ## Arquitectura
 
@@ -227,3 +227,9 @@ Production coordina cada efecto mediante UUID persistido y estados PENDING/CONFI
 Abrir **http://localhost:8080/finanzas**. Administra cuentas, movimientos confirmados, pagos parciales y ventas manuales. Los saldos derivan del ledger financiero. Las ventas solo aceptan FINISHED_PRODUCT por UNIT; Inventory descuenta o devuelve stock con UUID idempotente y Finance registra el ingreso o devolución después de la confirmación.
 
 Antes de migrar datos: pnpm finance:key:generate y pnpm finance:prepare -- --migrate. Ver [operación](docs/finance.md), [ADR-012](docs/adr/ADR-012-finance-sales-coordination.md) y [validación](docs/validation.md).
+
+## Costeo (Fase 7)
+
+Inventory es autoridad de cantidad, valor y promedio ponderado móvil. Las compras transfieren subtotales confirmados; los consumos congelan el promedio; el rendimiento real absorbe la merma productiva; el envasado conserva separados granel, empaques y merma propia antes de ingresar el producto terminado. Las existencias positivas anteriores requieren valoración inicial explícita y nunca reciben costos inferidos.
+
+Inventory determina COGS al confirmar ventas y Finance guarda la instantánea y deriva margen bruto. Todas las correcciones son compensatorias e idempotentes. Ver [costing.md](docs/costing.md) y [ADR-013](docs/adr/ADR-013-inventory-costing.md).

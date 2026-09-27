@@ -6,6 +6,8 @@
 
 Los importes son Decimal en texto. Ventas: cantidad entera × precio unitario, subtotal por línea redondeado HALF_UP a dos decimales y total como suma de líneas. El cliente no envía subtotal ni total.
 
+Desde Fase 7, el cliente tampoco envía costo. Inventory congela el promedio vigente por producto y devuelve COGS por línea al confirmar existencias. Finance persiste COGS, margen bruto y porcentaje en la misma confirmación local que el ingreso. Una anulación devuelve el costo histórico mediante Inventory y conserva las instantáneas originales para auditoría.
+
 ## Preparación y migración
 
 Generar la credencial técnica local:

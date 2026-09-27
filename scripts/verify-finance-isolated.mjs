@@ -84,6 +84,17 @@ async function inventoryChecks(schema) {
       },
       actorId,
     );
+    await stock.initialValuation(
+      {
+        operationId: randomUUID(),
+        itemId: item.id,
+        quantity: '2',
+        unitCost: '1000',
+        occurredAt: new Date().toISOString(),
+        reason: 'Valoración inicial del producto vendible',
+      },
+      actorId,
+    );
     const request = {
       operationId: randomUUID(),
       saleId: randomUUID(),
@@ -174,6 +185,13 @@ async function financeChecks(schema) {
         status: 'CONFIRMED',
         error: null,
         movements: [randomUUID()],
+        totalCost: '1000',
+        lineCosts: payload.lines.map((line) => ({
+          itemId: line.itemId,
+          quantity: line.quantity,
+          unitCost: '1000',
+          totalCost: '1000',
+        })),
       };
     },
   };

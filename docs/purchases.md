@@ -13,6 +13,8 @@ Compras, existencias y movimientos pertenecen exclusivamente a Inventory. El cat
 
 No se modifican saldos directamente ni se eliminan movimientos. Cancelar un borrador no mueve inventario. Revertir una compra recibida registra salidas compensatorias; conserva entradas y compra. Si algún saldo es insuficiente, toda la reversión falla.
 
+Desde Fase 7, recibir transfiere también el subtotal confirmado de cada línea y recalcula el promedio móvil en Inventory. La reversión conserva el movimiento original y transfiere su costo histórico. Existencias positivas anteriores a Fase 7 deben valorarse explícitamente; ver costing.md.
+
 ## API v1
 
 El gateway traduce /api/inventory/ a /api/v1/ en Inventory.

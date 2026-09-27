@@ -84,6 +84,17 @@ async function inventory(schema) {
         },
         actor,
       );
+      await stock.initialValuation(
+        {
+          operationId: randomUUID(),
+          itemId: item.id,
+          quantity: '10',
+          unitCost: '2',
+          occurredAt: new Date().toISOString(),
+          reason: 'Valoración inicial del fixture',
+        },
+        actor,
+      );
     }
     const request = (quantity = '3') => ({
       operationId: randomUUID(),
@@ -231,7 +242,27 @@ async function inventory(schema) {
       },
       actor,
     );
+    await stock.initialValuation(
+      {
+        operationId: randomUUID(),
+        itemId: packaging.id,
+        quantity: '10',
+        unitCost: '1',
+        occurredAt: new Date().toISOString(),
+        reason: 'Valoración inicial de empaques',
+      },
+      actor,
+    );
     const productionId = randomUUID();
+    await service.execute({
+      operationId: randomUUID(),
+      productionId,
+      actorId: actor,
+      kind: 'CONSUME',
+      originalOperationId: null,
+      reason: 'Consumo del lote con rendimiento',
+      lines: [{ itemId: items[0].id, baseUnit: 'GRAM', quantity: '1' }],
+    });
     const yieldRequest = {
       operationId: randomUUID(),
       productionId,
@@ -272,6 +303,15 @@ async function inventory(schema) {
     assert.equal((await stock.stock(packaging.id)).quantity, '8');
     assert.equal((await stock.stock(presentation.id)).quantity, '2');
     const raceProduction = randomUUID();
+    await service.execute({
+      operationId: randomUUID(),
+      productionId: raceProduction,
+      actorId: actor,
+      kind: 'CONSUME',
+      originalOperationId: null,
+      reason: 'Consumo del lote concurrente',
+      lines: [{ itemId: items[0].id, baseUnit: 'GRAM', quantity: '1' }],
+    });
     await service.execute({
       ...yieldRequest,
       operationId: randomUUID(),

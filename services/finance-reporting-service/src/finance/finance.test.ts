@@ -8,7 +8,7 @@ import { saleAmounts } from './domain';
 import { InventoryClient } from './inventory.client';
 import { FinanceService } from './finance.service';
 import type { PrismaService } from '../prisma.service';
-import type { SaleOperation } from '../generated/prisma/client';
+import { Prisma, type SaleOperation } from '../generated/prisma/client';
 const id = '11111111-1111-4111-8111-111111111111';
 const saleId = '22222222-2222-4222-8222-222222222222';
 const actorId = '33333333-3333-4333-8333-333333333333';
@@ -112,6 +112,15 @@ describe('cliente técnico y recuperación', () => {
         status: 'CONFIRMED',
         error: null,
         movements: [],
+        totalCost: '400',
+        lineCosts: [
+          {
+            itemId: actorId,
+            quantity: '2',
+            unitCost: '200',
+            totalCost: '400',
+          },
+        ],
       });
     const tx = {
       saleOperation: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -119,7 +128,7 @@ describe('cliente técnico y recuperación', () => {
         findUnique: vi.fn().mockResolvedValue({
           id: saleId,
           accountId: id,
-          total: '1000',
+          total: new Prisma.Decimal('1000'),
           paymentMethod: 'CASH',
           occurredAt: new Date(),
           reference: null,
@@ -130,6 +139,7 @@ describe('cliente técnico y recuperación', () => {
         update: vi.fn(),
       },
       financeMovement: { create: vi.fn() },
+      saleLine: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     };
     const db = {
       $transaction: vi.fn(async (fn) => fn(tx)),

@@ -62,6 +62,8 @@ const yieldDTO = (r: Order['yields'][number]) =>
     yieldPercentage: r.yieldPercentage.toFixed(),
     wasteQuantity: r.wasteQuantity.toFixed(),
     wastePercentage: r.wastePercentage.toFixed(),
+    totalCost: r.totalCost?.toFixed() ?? null,
+    unitCost: r.unitCost?.toFixed() ?? null,
     occurredAt: r.occurredAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -72,6 +74,11 @@ const packagingDTO = (r: Order['packagingOperations'][number]) =>
     unitsPackaged: r.unitsPackaged.toFixed(),
     productQuantityPerUnit: r.productQuantityPerUnit.toFixed(),
     productQuantityUsed: r.productQuantityUsed.toFixed(),
+    packagingWasteQuantity: r.packagingWasteQuantity.toFixed(),
+    bulkProductCost: r.bulkProductCost?.toFixed() ?? null,
+    packagingMaterialsCost: r.packagingMaterialsCost?.toFixed() ?? null,
+    totalCost: r.totalCost?.toFixed() ?? null,
+    unitCost: r.unitCost?.toFixed() ?? null,
     occurredAt: r.occurredAt.toISOString(),
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -552,10 +559,13 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
             );
           const Exact = Prisma.Decimal.clone({ precision: 80 });
           const units = new Exact(data.unitsPackaged);
-          const usedText = packagedProductQuantity(
+          const netContentText = packagedProductQuantity(
             data.unitsPackaged,
             data.productQuantityPerUnit,
           );
+          const usedText = new Exact(netContentText)
+            .plus(data.wasteQuantity)
+            .toFixed();
           const formula = formulaV1Schema.parse(row!.formulaRevision.snapshot);
           const allocated = row!.packagingOperations
             .filter((candidate) => candidate.status !== 'REJECTED')
@@ -579,9 +589,10 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
             reason: 'Envasado del lote ' + row!.batch,
             source: {
               itemId: result.productId,
-              quantity: usedText,
+              quantity: netContentText,
               baseUnit: result.baseUnit,
             },
+            wasteQuantity: data.wasteQuantity,
             materials: data.materials.map((material) => ({
               ...material,
               baseUnit: 'UNIT' as const,
@@ -610,6 +621,8 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
               unitsPackaged: units.toFixed(),
               productQuantityPerUnit: data.productQuantityPerUnit,
               productQuantityUsed: usedText,
+              packagingWasteQuantity: data.wasteQuantity,
+              packagingWasteReason: data.wasteReason ?? null,
               baseUnit: result.baseUnit,
               materials: payload.materials,
               occurredAt: data.occurredAt,
@@ -673,11 +686,23 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
           },
         });
         if (applied.count === 0) return;
+        if (
+          result.status === 'CONFIRMED' &&
+          (operation.kind === 'YIELD' || operation.kind === 'PACKAGE') &&
+          !result.costs
+        )
+          throw new ProductionError(
+            'INVALID_RESPONSE',
+            503,
+            'Inventory no devolvió el costo confirmado.',
+          );
         if (operation.kind === 'YIELD')
           await tx.productionYield.update({
             where: { operationId: operation.id },
             data: {
               status: result.status,
+              totalCost: result.costs?.totalCost,
+              unitCost: result.costs?.unitCost,
               version: { increment: 1 },
             },
           });
@@ -686,6 +711,10 @@ export class ProductionService implements OnModuleInit, OnModuleDestroy {
             where: { operationId: operation.id },
             data: {
               status: result.status,
+              bulkProductCost: result.costs?.bulkProductCost,
+              packagingMaterialsCost: result.costs?.packagingMaterialsCost,
+              totalCost: result.costs?.totalCost,
+              unitCost: result.costs?.unitCost,
               version: { increment: 1 },
             },
           });

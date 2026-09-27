@@ -22,9 +22,13 @@ Ese cierre lógico de Fase 4 no generaba rendimiento ni existencias; Fase 5 aña
 
 Un lote COMPLETED registra rendimiento en `POST production/orders/:id/yield`. Cantidad real y merma son Decimal en la unidad base de la fórmula; el motivo es obligatorio cuando la merma es positiva. Las fórmulas son: diferencia = real − planificada; rendimiento % = real / planificada × 100; merma % = merma / planificada × 100. Los porcentajes derivados se redondean HALF_UP a diez decimales. Production persiste actor, fecha UTC, notas, métricas, estado, versión y UUID. Inventory confirma la entrada `PRODUCTION_IN` antes del estado CONFIRMED.
 
+Desde Fase 7, esa entrada recibe la suma exacta de los costos congelados en los consumos confirmados del lote. El costo completo se divide por la cantidad real; la merma productiva queda absorbida por el granel vendible y un menor rendimiento eleva su costo unitario.
+
 `POST production/packaging` exige rendimiento confirmado. El producto vendible es un `FINISHED_PRODUCT` distinto, con unidad UNIT y capacidad nominal. El cuerpo declara explícitamente unidades y cantidad de granel por unidad, más materiales `PACKAGING` y cantidades totales. Inventory valida dimensión/capacidad, bloquea artículos y confirma juntas las salidas de granel y materiales y la entrada de unidades. No se infiere peso desde un recipiente ni se hardcodean 4/8 oz.
 
 Los dos endpoints usan `production.write`; las lecturas permanecen en el detalle/listado protegido por `production.read`. OWNER, ADMIN y OPERATOR gestionan; VIEWER consulta. Las operaciones PENDING se recuperan automáticamente o mediante el endpoint de reconciliación existente. Confirmadas y rechazadas son auditables y no tienen borrado.
+
+El envasado conserva separado el costo de granel y de materiales. `wasteQuantity`/`wasteReason` registran merma normal de envasado aparte de la merma productiva; Inventory descuenta contenido neto más merma y transfiere todo ese costo a las unidades obtenidas. Production guarda la instantánea confirmada por Inventory, pero no es autoridad de valoración.
 
 ## Versiones e historial
 

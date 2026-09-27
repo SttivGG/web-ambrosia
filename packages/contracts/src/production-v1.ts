@@ -6,7 +6,11 @@ import {
   paginationV1Schema,
   versionV1Schema,
 } from './catalog-v1';
-import { quantityV1Schema, movementV1Schema } from './purchase-v1';
+import {
+  quantityV1Schema,
+  movementV1Schema,
+  costDecimalV1Schema,
+} from './purchase-v1';
 export const productionIdV1Schema = z.string().uuid().toLowerCase();
 export const PRODUCTION_STATUSES_V1 = [
   'DRAFT',
@@ -100,6 +104,15 @@ export const consumptionResultV1Schema = z
     status: z.enum(['CONFIRMED', 'REJECTED']),
     error: z.string().nullable(),
     movements: z.array(movementV1Schema),
+    costs: z
+      .object({
+        totalCost: costDecimalV1Schema,
+        unitCost: costDecimalV1Schema.nullable(),
+        bulkProductCost: costDecimalV1Schema.nullable(),
+        packagingMaterialsCost: costDecimalV1Schema.nullable(),
+      })
+      .nullable()
+      .default(null),
   })
   .strict();
 export const productionStockLineV1Schema = ingredientV1Schema
@@ -130,6 +143,7 @@ export const packagingInventoryRequestV1Schema = z
     kind: z.literal('PACKAGE'),
     reason: z.string().trim().min(3).max(500),
     source: ingredientV1Schema,
+    wasteQuantity: decimalV1Schema.default('0'),
     materials: ingredientsV1Schema,
     output: ingredientV1Schema,
   })
@@ -176,6 +190,8 @@ export const packagingInputV1Schema = z
     presentationProductId: productionIdV1Schema,
     unitsPackaged: quantityV1Schema,
     productQuantityPerUnit: quantityV1Schema,
+    wasteQuantity: decimalV1Schema.default('0'),
+    wasteReason: z.string().trim().min(3).max(500).nullable().optional(),
     materials: z
       .array(packagingMaterialInputV1Schema)
       .min(1)
@@ -188,7 +204,16 @@ export const packagingInputV1Schema = z
     notes: z.string().trim().max(2000).nullable().optional(),
     expectedVersion: versionV1Schema.shape.expectedVersion,
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) =>
+      (v.wasteQuantity === '0' && !v.wasteReason) ||
+      (v.wasteQuantity !== '0' && Boolean(v.wasteReason)),
+    {
+      path: ['wasteReason'],
+      message: 'Indica el motivo de la merma de envasado.',
+    },
+  );
 export const productionYieldV1Schema = z
   .object({
     id: productionIdV1Schema,
@@ -201,6 +226,8 @@ export const productionYieldV1Schema = z
     yieldPercentage: quantityV1Schema,
     wasteQuantity: decimalV1Schema,
     wastePercentage: decimalV1Schema,
+    totalCost: costDecimalV1Schema.nullable(),
+    unitCost: costDecimalV1Schema.nullable(),
     baseUnit: z.enum(BASE_UNITS_V1),
     occurredAt: z.string().datetime(),
     actorId: productionIdV1Schema,
@@ -223,8 +250,14 @@ export const packagingV1Schema = z
     unitsPackaged: quantityV1Schema,
     productQuantityPerUnit: quantityV1Schema,
     productQuantityUsed: quantityV1Schema,
+    packagingWasteQuantity: decimalV1Schema.default('0'),
+    packagingWasteReason: z.string().nullable().default(null),
     baseUnit: z.enum(BASE_UNITS_V1),
     materials: ingredientsV1Schema,
+    bulkProductCost: costDecimalV1Schema.nullable(),
+    packagingMaterialsCost: costDecimalV1Schema.nullable(),
+    totalCost: costDecimalV1Schema.nullable(),
+    unitCost: costDecimalV1Schema.nullable(),
     occurredAt: z.string().datetime(),
     actorId: productionIdV1Schema,
     notes: z.string().nullable(),

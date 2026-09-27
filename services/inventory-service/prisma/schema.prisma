@@ -56,6 +56,7 @@ model CatalogItem {
   purchaseLines        PurchaseLine[]
   movements            InventoryMovement[]
   balance              InventoryBalance?
+  initialValuation     InitialInventoryValuation?
   suppliers            SupplierItem[]
   id                   String               @id @default(uuid()) @db.Uuid
   sku                  String               @unique @db.VarChar(40)
@@ -183,10 +184,28 @@ model PurchaseLine {
 }
 
 model InventoryBalance {
-  itemId    String      @id @db.Uuid
-  item      CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  quantity  Decimal     @default(0) @db.Decimal(24, 10)
-  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
+  itemId          String      @id @db.Uuid
+  item            CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity        Decimal     @default(0) @db.Decimal(24, 10)
+  inventoryValue  Decimal?    @db.Decimal(48, 18)
+  averageUnitCost Decimal?    @db.Decimal(48, 18)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+}
+
+model InitialInventoryValuation {
+  id          String      @id @default(uuid()) @db.Uuid
+  operationId String      @unique @db.Uuid
+  itemId      String      @unique @db.Uuid
+  item        CatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity    Decimal     @db.Decimal(24, 10)
+  unitCost    Decimal     @db.Decimal(48, 18)
+  totalCost   Decimal     @db.Decimal(48, 18)
+  occurredAt  DateTime    @db.Timestamptz(3)
+  actorId     String      @db.Uuid
+  reason      String      @db.VarChar(500)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([occurredAt, id])
 }
 
 model InventoryMovement {
@@ -199,6 +218,10 @@ model InventoryMovement {
   item                  CatalogItem               @relation(fields: [itemId], references: [id], onDelete: Restrict)
   type                  MovementType
   quantity              Decimal                   @db.Decimal(24, 10)
+  unitCost              Decimal?                  @db.Decimal(48, 18)
+  totalCost             Decimal?                  @db.Decimal(48, 18)
+  inventoryValueAfter   Decimal?                  @db.Decimal(48, 18)
+  averageUnitCostAfter  Decimal?                  @db.Decimal(48, 18)
   baseUnit              InventoryBaseUnit
   origin                String                    @db.VarChar(20)
   reference             String                    @db.VarChar(80)
