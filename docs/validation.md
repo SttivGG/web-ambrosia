@@ -602,3 +602,29 @@ La API inicial expone health, inventario, movimientos, producción y finanzas co
 Durante la validación se corrigió la configuración del consumidor push de NATS 2.29: el durable consumer requería un `deliver_subject` estable. También se ajustó el verificador para tratar `processedAt` como metadato de reprocesamiento y para comprobar el encabezado real de la UI. Los intentos fallidos no se contabilizan como aprobados. No se implementaron dashboards finales ni exportaciones PDF, XLSX o CSV.
 
 Evidencias locales ignoradas por Git: `artifacts/phase8a/verification.json` y `artifacts/stack-verification.json`. No se hizo commit ni push y `docs/operations/` permaneció intacto y fuera del staging.
+
+## Fase 8B — Reportes Operativos, 2026-09-28
+
+Reporting se amplió con compras, consolidado de proveedores, inventario, Kardex, lotes de producción, rendimiento, merma y envasado. Los read models siguen siendo derivados, idempotentes y reconstruibles; Inventory y Production exponen snapshots autenticados y no se consultan bases ajenas. Los costos conservan Decimal y la API los redacta para quien tiene `reports.read` sin `reports.finance`. `UNVALUED` conserva costo y valor en `null`.
+
+| Validación                                       | Resultado real                                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`                              | Aprobado                                                                                                   |
+| `pnpm lint`                                      | Aprobado; 11 tareas y scripts raíz                                                                         |
+| `pnpm typecheck`                                 | Aprobado; 11 tareas                                                                                        |
+| `pnpm test`                                      | Aprobado; 485 pruebas                                                                                      |
+| `pnpm build`                                     | Aprobado; ocho tareas y ruta `/reportes`                                                                   |
+| `git diff --check`                               | Aprobado                                                                                                   |
+| Prisma Inventory, Production y Finance/Reporting | Tres esquemas válidos                                                                                      |
+| Migraciones                                      | Finance aplicó `202609270002_operational_reports`; segunda ejecución: cuatro migraciones y cero pendientes |
+| `node scripts/verify-reporting.mjs`              | Siete grupos aprobados con PostgreSQL, JetStream, API, RBAC, rebuild y navegador reales                    |
+| `pnpm test:stack`                                | Aprobado con salida 0 y 20 grupos; cierre `2026-09-28T21:18:05.955Z`                                       |
+| Contenedores y puertos                           | Ocho contenedores `running/healthy`; solo gateway publica 8080                                             |
+
+Las 485 pruebas se distribuyen en panel 114, Identity 29, Inventory 199, Production 31, Finance/Reporting 34, nest-auth 54, contratos 8 y raíz 16. Cubren filtros y estados de compras, promedio ponderado, proveedores e historial de precios, `VALUED`/`UNVALUED`, valor parcial, Kardex histórico y `operationId`, producción, división segura de rendimiento y merma, costos separados de envasado, RBAC, reconciliación repetida, rebuild y estados de UI.
+
+El verificador real detuvo Reporting, creó en los dominios una compra, un movimiento sin valorar y un lote terminado con rendimiento, merma y envasado. JetStream recuperó las proyecciones; la segunda reconciliación produjo duplicados idempotentes y el rebuild global restauró compras, inventario, producción y envasado con el mismo estado funcional. VIEWER conservó cantidades pero recibió costos nulos y 403 en finanzas/administración. Todos los fixtures y usuarios temporales se eliminaron.
+
+La primera corrida integral se detuvo porque el helper seguro de usuarios aún no aceptaba el prefijo `fase8b`; se amplió su whitelist. Una corrida posterior encontró una intermitencia heredada en la carrera archivado/creación de Catálogo; la prueba aislada pasó y la ejecución integral final aprobó los 20 grupos, incluida esa carrera. Los intentos fallidos no se contabilizan como aprobados.
+
+Evidencias ignoradas por Git: `artifacts/phase8b/verification.json` y `artifacts/stack-verification.json`. No se hizo commit ni push; `docs/operations/` no se modificó.

@@ -9,6 +9,7 @@ import { HealthController } from './health.controller';
 import { PrismaService } from './prisma.service';
 import { EventBusService } from './event-bus.service';
 import { ReportingPublisherService } from './reporting/publisher.service';
+import { ReportingInternalController } from './reporting/internal.controller';
 @Module({
   imports: [
     NestAuthModule.register(authOptions(process.env)),
@@ -23,7 +24,11 @@ import { ReportingPublisherService } from './reporting/publisher.service';
         }),
     }),
   ],
-  controllers: [HealthController, ProductionController],
+  controllers: [
+    HealthController,
+    ProductionController,
+    ReportingInternalController,
+  ],
   providers: [
     PrismaService,
     EventBusService,

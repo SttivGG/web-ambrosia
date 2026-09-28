@@ -1,6 +1,6 @@
 # Ambrosia
 
-Sistema de control de producción de yogurt griego. Las Fases 0–8A cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado, finanzas, costeo y read models de Reporting. Fase 8A incorpora proyecciones idempotentes, reconciliación y consultas paginadas sin alterar la separación entre servicios.
+Sistema de control de producción de yogurt griego. Las Fases 0–8B cubren infraestructura, autenticación, catálogo, compras, inventario, producción, rendimiento, envasado, finanzas, costeo y Reporting. Fase 8B añade reportes operativos paginados de compras, proveedores, inventario, Kardex, producción, rendimiento, merma y envasado sobre proyecciones idempotentes y reconstruibles.
 
 ## Arquitectura
 

@@ -11,6 +11,7 @@
 | 6    | Finanzas                     | **Completada**              |
 | 7    | Costeo e informes            | **Completada**              |
 | 8A   | Infraestructura de Reporting | **Completada**              |
+| 8B   | Reportes operativos          | **Implementada**            |
 
 Fase 1A incorpora identidad, contraseñas Argon2id, sesiones rotativas, JWT RS256/JWKS, cookies, CSRF, rate limiting, roles/permisos y bootstrap del primer propietario. La Fase 1B integra login, sesión, refresh y protección del panel; su validación local, de navegador y stack está completada. La Fase 1C incorpora validación JWT/JWKS local, guards globales, RBAC por permisos, CSRF y protección de Swagger. Su validación incluye 175 pruebas, Playwright real, test:stack, aislamiento y persistencia. La Fase 2A incorpora categorías y artículos, contratos v1, migración propia de Inventory, control de versiones, permisos e interfaz responsive. Se verificó con 255 pruebas y PostgreSQL/Playwright reales. Fase 2B completada: proveedores y asociaciones con artículos, 325 pruebas, PostgreSQL/Playwright reales y 16 grupos de test:stack aprobados. Ver ADR-008 y validation.md.
 
@@ -24,4 +25,4 @@ Fase 6 completada: cuentas, movimientos COP, pagos parciales de compras y ventas
 
 Fase 7 completada: promedio ponderado móvil en Inventory, valoración inicial explícita, costo real por lote, absorción de merma productiva y de envasado, componentes de envasado separados, producto terminado valorado, COGS y margen bruto. Se mantienen autoridades, bases separadas y coordinación recuperable. Ver ADR-013, costing.md y validation.md.
 
-Fase 8A implementa contratos y subjects v1, stream y consumidor durable, cuatro read models reconstruibles, filtros temporales '[from, to)', paginación, RBAC, reconciliación/reconstrucción de Inventory y una entrada mínima '/reportes'. No incluye dashboards finales ni exportaciones. Ver ADR-014 y validation.md.
+Fase 8A implementa contratos y subjects v1, stream y consumidor durable, cuatro read models reconstruibles, filtros temporales '[from, to)', paginación, RBAC, reconciliación/reconstrucción de Inventory y una entrada mínima '/reportes'. Fase 8B agrega read models de compras y envasado, reconciliación/rebuild de Inventory y Production, agregaciones Decimal, comparación temporal y las nueve vistas operativas. No incluye dashboards finales ni exportaciones. Ver ADR-014, reporting.md y validation.md.

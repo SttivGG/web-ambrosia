@@ -36,6 +36,7 @@ describe('reconciliación de Inventory', () => {
         json: async () => ({
           items: [event],
           movements: [],
+          purchases: [],
           pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
         }),
       })),
@@ -47,7 +48,11 @@ describe('reconciliación de Inventory', () => {
         seen = true;
         return 'applied' as const;
       }),
-      clearInventory: vi.fn(async () => ({ items: 1, movements: 0 })),
+      clearInventory: vi.fn(async () => ({
+        items: 1,
+        movements: 0,
+        purchases: 0,
+      })),
     } as unknown as ReportingService;
     const service = new InventoryReconciliationService(reporting);
     await expect(service.reconcile()).resolves.toMatchObject({ applied: 1 });
@@ -62,17 +67,22 @@ describe('reconciliación de Inventory', () => {
         json: async () => ({
           items: [event],
           movements: [],
+          purchases: [],
           pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
         }),
       })),
     );
     const reporting = {
       apply: vi.fn(async () => 'applied' as const),
-      clearInventory: vi.fn(async () => ({ items: 1, movements: 2 })),
+      clearInventory: vi.fn(async () => ({
+        items: 1,
+        movements: 2,
+        purchases: 0,
+      })),
     } as unknown as ReportingService;
     const service = new InventoryReconciliationService(reporting);
     const result = await service.rebuild();
-    expect(result.cleared).toEqual({ items: 1, movements: 2 });
+    expect(result.cleared).toEqual({ items: 1, movements: 2, purchases: 0 });
     expect(result.reconciled.applied).toBe(1);
   });
 });

@@ -8,6 +8,11 @@ try {
 } catch {
   throw new Error('Ejecutar pnpm finance:key:generate.');
 }
+try {
+  process.loadEnvFile('secrets/reporting.local.env');
+} catch {
+  throw new Error('Ejecutar pnpm reporting:key:generate.');
+}
 import { loadEnvFile } from 'node:process';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';

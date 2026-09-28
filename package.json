@@ -27,6 +27,7 @@
     "test:ui": "node scripts/verify-ui.mjs",
     "auth:keys:generate": "node scripts/generate-auth-keys.mjs",
     "finance:key:generate": "node scripts/generate-finance-key.mjs",
+    "reporting:key:generate": "node scripts/generate-reporting-key.mjs",
     "finance:prepare": "node scripts/prepare-finance.mjs",
     "finance:verify": "node scripts/verify-finance.mjs",
     "inventory:seed-catalog": "node scripts/seed-catalog.mjs",

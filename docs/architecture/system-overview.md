@@ -77,3 +77,7 @@ Inventory amplía su mismo ledger con valor, costo unitario y promedio ponderado
 'finance-reporting-service' mantiene separados los módulos Finance y Reporting dentro de la misma aplicación y base propia. Inventory, Production y Finance publican snapshots v1 repetibles en JetStream; el consumidor durable materializa artículos, movimientos, lotes y márgenes con deduplicación por 'eventId' y orden determinista por versión e instante.
 
 Reporting es derivado y eventualmente consistente. No escribe dominios operativos ni consulta bases ajenas. Inventory ofrece una API interna paginada, autenticada y no publicada por el gateway para reconciliar o reconstruir sus proyecciones. La API de usuario expone listas paginadas bajo '/api/v1/reports'; los rangos son UTC y semiabiertos '[from, to)'. 'reports.finance' separa información financiera, 'reports.manage' protege las operaciones administrativas y 'reports.export' queda reservado para exportaciones futuras. Ver ADR-014.
+
+## Reportes operativos (Fase 8B)
+
+Reporting añade proyecciones por línea de compra y operación de envasado. Inventory publica y reconcilia catálogo, Kardex y compras desde su propia base; Production publica y reconcilia lotes y envasado desde la suya mediante una credencial técnica separada. La API calcula KPIs y comparación temporal con Decimal, pagina las listas y aplica reports.finance en el servidor. El panel /reportes ofrece nueve destinos responsive. Ver reporting.md.

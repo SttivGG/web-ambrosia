@@ -112,6 +112,38 @@ export class ReportingPublisherService
           REPORTING_SUBJECTS_V1.production,
           event,
         );
+        for (const entry of row.packagingOperations) {
+          const packageVersion = entry.updatedAt.getTime();
+          const packagingEvent = productionReportingEventV1Schema.parse({
+            kind: 'PACKAGING_SNAPSHOT',
+            sourceService: 'production-service',
+            sourceEntityId: entry.id,
+            sourceVersion: packageVersion,
+            operationId: entry.operationId,
+            eventId: eventId(
+              `production:packaging:${entry.id}:${packageVersion}`,
+            ),
+            occurredAt: entry.updatedAt.toISOString(),
+            packagingOperationId: entry.id,
+            batchId: row.id,
+            batch: row.batch,
+            finishedProductId: entry.presentationProductId,
+            units: entry.unitsPackaged.toFixed(),
+            netContentPerUnit: entry.productQuantityPerUnit.toFixed(),
+            netContentTotal: entry.productQuantityUsed.toFixed(),
+            unit: entry.baseUnit,
+            bulkCost: entry.bulkProductCost?.toFixed() ?? null,
+            materialsCost: entry.packagingMaterialsCost?.toFixed() ?? null,
+            totalCost: entry.totalCost?.toFixed() ?? null,
+            finishedUnitCost: entry.unitCost?.toFixed() ?? null,
+            status: entry.status,
+            packagedAt: entry.occurredAt.toISOString(),
+          });
+          await this.events.publishReporting(
+            REPORTING_SUBJECTS_V1.production,
+            packagingEvent,
+          );
+        }
       }
     } catch {
       this.logger.warn(

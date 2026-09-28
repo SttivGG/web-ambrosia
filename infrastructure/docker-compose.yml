@@ -106,6 +106,7 @@ services:
     restart: unless-stopped
     env_file:
       - ../secrets/production.local.env
+      - ../secrets/reporting.local.env
     init: true
     environment:
       NODE_ENV: production
@@ -147,10 +148,12 @@ services:
     restart: unless-stopped
     env_file:
       - ../secrets/finance.local.env
+      - ../secrets/reporting.local.env
     init: true
     environment:
       NODE_ENV: production
       INVENTORY_INTERNAL_URL: http://inventory-service:3001
+      PRODUCTION_INTERNAL_URL: http://production-service:3002
       PORT: 3003
       DATABASE_URL: postgresql://finance_user:${FINANCE_DB_PASSWORD:?required}@postgres:5432/ambrosia_finance_reports
       NATS_URL: nats://nats:4222

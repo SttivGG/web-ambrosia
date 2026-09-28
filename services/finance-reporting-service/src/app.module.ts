@@ -13,6 +13,8 @@ import { ReportingService } from './reporting/reporting.service';
 import { ReportingConsumerService } from './reporting/consumer.service';
 import { InventoryReconciliationService } from './reporting/reconciliation.service';
 import { FinanceReportingPublisherService } from './reporting/finance-publisher.service';
+import { OperationalReportsService } from './reporting/operational.service';
+import { ProductionReconciliationService } from './reporting/production-reconciliation.service';
 @Module({
   imports: [
     NestAuthModule.register(authOptions(process.env)),
@@ -36,6 +38,8 @@ import { FinanceReportingPublisherService } from './reporting/finance-publisher.
     ReportingService,
     ReportingConsumerService,
     InventoryReconciliationService,
+    ProductionReconciliationService,
+    OperationalReportsService,
     FinanceReportingPublisherService,
   ],
 })

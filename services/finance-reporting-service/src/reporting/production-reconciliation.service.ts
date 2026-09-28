@@ -1,28 +1,28 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   REPORTING_SUBJECTS_V1,
-  inventoryReconciliationPageV1Schema,
+  productionReconciliationPageV1Schema,
 } from '@ambrosia/contracts';
 import { ReportingService } from './reporting.service';
 
 @Injectable()
-export class InventoryReconciliationService {
+export class ProductionReconciliationService {
   constructor(private readonly reporting: ReportingService) {}
   private async page(page: number) {
-    const token = process.env.FINANCE_INVENTORY_TOKEN;
+    const token = process.env.REPORTING_PRODUCTION_TOKEN;
     if (!token || token.length < 64)
       throw new ServiceUnavailableException(
-        'La conexión técnica con Inventory no está configurada.',
+        'La conexión técnica con Production no está configurada.',
       );
     try {
       const base =
-        process.env.INVENTORY_INTERNAL_URL ?? 'http://127.0.0.1:3001';
+        process.env.PRODUCTION_INTERNAL_URL ?? 'http://127.0.0.1:3002';
       const query = new URLSearchParams({
         page: String(page),
         pageSize: '100',
       });
       const response = await fetch(
-        base + '/api/v1/internal/reporting/inventory?' + query,
+        base + '/api/v1/internal/reporting/production?' + query,
         {
           headers: { Authorization: 'Bearer ' + token },
           signal: AbortSignal.timeout(5_000),
@@ -30,29 +30,25 @@ export class InventoryReconciliationService {
         },
       );
       if (!response.ok) throw new Error('upstream');
-      return inventoryReconciliationPageV1Schema.parse(await response.json());
+      return productionReconciliationPageV1Schema.parse(await response.json());
     } catch {
       throw new ServiceUnavailableException(
-        'Inventory no está disponible para reconciliar Reporting.',
+        'Production no está disponible para reconciliar Reporting.',
       );
     }
   }
   async reconcile() {
-    let page = 1;
-    let totalPages = 1;
-    let applied = 0;
-    let duplicates = 0;
-    let stale = 0;
+    let page = 1,
+      totalPages = 1,
+      applied = 0,
+      duplicates = 0,
+      stale = 0;
     do {
       const snapshot = await this.page(page);
       totalPages = snapshot.pagination.totalPages;
-      for (const event of [
-        ...snapshot.items,
-        ...snapshot.movements,
-        ...snapshot.purchases,
-      ]) {
+      for (const event of [...snapshot.batches, ...snapshot.packaging]) {
         const result = await this.reporting.apply(
-          REPORTING_SUBJECTS_V1.inventory,
+          REPORTING_SUBJECTS_V1.production,
           event,
         );
         if (result === 'applied') applied += 1;
@@ -64,7 +60,7 @@ export class InventoryReconciliationService {
     return { status: 'ok', applied, duplicates, stale };
   }
   async rebuild() {
-    const cleared = await this.reporting.clearInventory();
+    const cleared = await this.reporting.clearProduction();
     const reconciled = await this.reconcile();
     return { status: 'ok', cleared, reconciled };
   }

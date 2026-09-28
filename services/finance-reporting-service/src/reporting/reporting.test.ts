@@ -35,7 +35,9 @@ class MemoryModel {
 class MemoryDb {
   reportInventoryItem = new MemoryModel();
   reportInventoryMovement = new MemoryModel();
+  reportPurchaseItem = new MemoryModel();
   reportProductionBatch = new MemoryModel();
+  reportPackagingOperation = new MemoryModel();
   reportSaleMargin = new MemoryModel();
   events = new Map<string, Row>();
   reportProcessedEvent = {
@@ -198,6 +200,7 @@ describe('proyecciones Reporting', () => {
     });
     const result = await service.clearInventory();
     expect(result.items).toBe(1);
+    expect(result.purchases).toBe(0);
     expect(db.reportInventoryItem.rows.size).toBe(0);
     expect(db.reportSaleMargin.rows.size).toBe(1);
   });

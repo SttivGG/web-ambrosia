@@ -140,6 +140,34 @@ export class ReportingService {
               create: data,
               update: data,
             });
+          } else if (event.kind === 'PURCHASE_ITEM_SNAPSHOT') {
+            const current = await tx.reportPurchaseItem.findUnique({
+              where: { sourceEntityId: event.sourceEntityId },
+            });
+            if (!newer(current, event)) return 'stale';
+            const data = {
+              ...meta(event),
+              purchaseId: event.purchaseId,
+              purchaseLineId: event.purchaseLineId,
+              purchaseReference: event.purchaseReference,
+              purchasedAt: new Date(event.purchasedAt),
+              supplierId: event.supplierId,
+              supplierNameSnapshot: event.supplierNameSnapshot,
+              itemId: event.itemId,
+              itemNameSnapshot: event.itemNameSnapshot,
+              categoryId: event.categoryId,
+              categoryNameSnapshot: event.categoryNameSnapshot,
+              quantity: event.quantity,
+              unit: event.unit,
+              unitCost: event.unitCost,
+              subtotal: event.subtotal,
+              status: event.status,
+            };
+            await tx.reportPurchaseItem.upsert({
+              where: { sourceEntityId: event.sourceEntityId },
+              create: data,
+              update: data,
+            });
           } else if (event.kind === 'BATCH_SNAPSHOT') {
             const current = await tx.reportProductionBatch.findUnique({
               where: { sourceEntityId: event.sourceEntityId },
@@ -165,6 +193,33 @@ export class ReportingService {
               packagingOutputQuantity: event.packagingOutputQuantity,
             };
             await tx.reportProductionBatch.upsert({
+              where: { sourceEntityId: event.sourceEntityId },
+              create: data,
+              update: data,
+            });
+          } else if (event.kind === 'PACKAGING_SNAPSHOT') {
+            const current = await tx.reportPackagingOperation.findUnique({
+              where: { sourceEntityId: event.sourceEntityId },
+            });
+            if (!newer(current, event)) return 'stale';
+            const data = {
+              ...meta(event),
+              packagingOperationId: event.packagingOperationId,
+              batchId: event.batchId,
+              batch: event.batch,
+              finishedProductId: event.finishedProductId,
+              units: event.units,
+              netContentPerUnit: event.netContentPerUnit,
+              netContentTotal: event.netContentTotal,
+              unit: event.unit,
+              bulkCost: event.bulkCost,
+              materialsCost: event.materialsCost,
+              totalCost: event.totalCost,
+              finishedUnitCost: event.finishedUnitCost,
+              status: event.status,
+              packagedAt: new Date(event.packagedAt),
+            };
+            await tx.reportPackagingOperation.upsert({
               where: { sourceEntityId: event.sourceEntityId },
               create: data,
               update: data,
@@ -207,7 +262,7 @@ export class ReportingService {
     }
   }
 
-  async inventory(query: ReportInventoryFiltersV1) {
+  async inventory(query: ReportInventoryFiltersV1, finance = true) {
     const where: Prisma.ReportInventoryItemWhereInput = {
       itemType: query.itemType,
       valuationStatus: query.valuationStatus,
@@ -231,18 +286,53 @@ export class ReportingService {
       data: rows.map((row) => ({
         ...commonDto(row),
         onHand: row.onHand.toFixed(),
-        weightedAverageCost: row.weightedAverageCost?.toFixed() ?? null,
-        inventoryValue: row.inventoryValue?.toFixed() ?? null,
+        weightedAverageCost: finance
+          ? (row.weightedAverageCost?.toFixed() ?? null)
+          : null,
+        inventoryValue: finance
+          ? (row.inventoryValue?.toFixed() ?? null)
+          : null,
         updatedAt: row.updatedAt.toISOString(),
       })),
       pagination: pagination(query, total),
     });
   }
 
-  async movements(query: ReportMovementFiltersV1) {
+  async inventorySummary(query: ReportInventoryFiltersV1, finance: boolean) {
+    const where: Prisma.ReportInventoryItemWhereInput = {
+      itemType: query.itemType,
+      valuationStatus: query.valuationStatus,
+      ...(query.search
+        ? { itemNameSnapshot: { contains: query.search, mode: 'insensitive' } }
+        : {}),
+      ...(query.from || query.to
+        ? { updatedAt: dates(query.from, query.to) }
+        : {}),
+    };
+    const rows = await this.db.reportInventoryItem.findMany({ where });
+    const value = rows.reduce(
+      (sum, row) => sum.plus(row.inventoryValue ?? 0),
+      new Prisma.Decimal(0),
+    );
+    return {
+      metrics: {
+        valorInventarioValorado: finance ? value.toFixed() : null,
+        articulosConExistencia: rows.filter((row) => row.onHand.gt(0)).length,
+        articulosSinValorar: rows.filter(
+          (row) => row.valuationStatus === 'UNVALUED',
+        ).length,
+      },
+    };
+  }
+
+  async movements(query: ReportMovementFiltersV1, finance = true) {
     const where: Prisma.ReportInventoryMovementWhereInput = {
       itemId: query.itemId,
       movementType: query.movementType,
+      operationId: query.operationId,
+      ...(query.reference
+        ? { reference: { contains: query.reference, mode: 'insensitive' } }
+        : {}),
       ...(query.from || query.to
         ? { occurredAt: dates(query.from, query.to) }
         : {}),
@@ -262,9 +352,11 @@ export class ReportingService {
         quantityIn: row.quantityIn.toFixed(),
         quantityOut: row.quantityOut.toFixed(),
         balanceAfter: row.balanceAfter?.toFixed() ?? null,
-        unitCost: row.unitCost?.toFixed() ?? null,
-        totalCost: row.totalCost?.toFixed() ?? null,
-        averageCostAfter: row.averageCostAfter?.toFixed() ?? null,
+        unitCost: finance ? (row.unitCost?.toFixed() ?? null) : null,
+        totalCost: finance ? (row.totalCost?.toFixed() ?? null) : null,
+        averageCostAfter: finance
+          ? (row.averageCostAfter?.toFixed() ?? null)
+          : null,
       })),
       pagination: pagination(query, total),
     });
@@ -335,13 +427,21 @@ export class ReportingService {
   }
 
   async health() {
-    const [inventoryItems, inventoryMovements, productionBatches, saleMargins] =
-      await Promise.all([
-        this.db.reportInventoryItem.count(),
-        this.db.reportInventoryMovement.count(),
-        this.db.reportProductionBatch.count(),
-        this.db.reportSaleMargin.count(),
-      ]);
+    const [
+      inventoryItems,
+      inventoryMovements,
+      productionBatches,
+      saleMargins,
+      purchaseItems,
+      packagingOperations,
+    ] = await Promise.all([
+      this.db.reportInventoryItem.count(),
+      this.db.reportInventoryMovement.count(),
+      this.db.reportProductionBatch.count(),
+      this.db.reportSaleMargin.count(),
+      this.db.reportPurchaseItem.count(),
+      this.db.reportPackagingOperation.count(),
+    ]);
     return {
       status: 'ok' as const,
       timestamp: new Date().toISOString(),
@@ -350,18 +450,36 @@ export class ReportingService {
         inventoryMovements,
         productionBatches,
         saleMargins,
+        purchaseItems,
+        packagingOperations,
       },
     };
   }
 
+  async clearProduction() {
+    return this.db.$transaction(async (tx) => {
+      const packaging = await tx.reportPackagingOperation.deleteMany();
+      const batches = await tx.reportProductionBatch.deleteMany();
+      await tx.reportProcessedEvent.deleteMany({
+        where: { sourceService: 'production-service' },
+      });
+      return { batches: batches.count, packaging: packaging.count };
+    });
+  }
+
   async clearInventory() {
     return this.db.$transaction(async (tx) => {
+      const purchases = await tx.reportPurchaseItem.deleteMany();
       const movements = await tx.reportInventoryMovement.deleteMany();
       const items = await tx.reportInventoryItem.deleteMany();
       await tx.reportProcessedEvent.deleteMany({
         where: { sourceService: 'inventory-service' },
       });
-      return { items: items.count, movements: movements.count };
+      return {
+        items: items.count,
+        movements: movements.count,
+        purchases: purchases.count,
+      };
     });
   }
 }

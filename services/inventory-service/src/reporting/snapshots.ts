@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   reportInventoryItemSnapshotV1Schema,
   reportInventoryMovementSnapshotV1Schema,
+  reportPurchaseItemSnapshotV1Schema,
 } from '@ambrosia/contracts';
 import type { Prisma } from '../generated/prisma/client';
 
@@ -21,6 +22,43 @@ export const deterministicEventId = (value: string) => {
 
 type Item = Prisma.CatalogItemGetPayload<{ include: { balance: true } }>;
 type Movement = Prisma.InventoryMovementGetPayload<{ include: { item: true } }>;
+type PurchaseLine = Prisma.PurchaseLineGetPayload<{
+  include: {
+    item: { include: { category: true } };
+    purchase: { include: { supplier: true } };
+    movements: true;
+  };
+}>;
+export const purchaseSnapshot = (row: PurchaseLine) => {
+  const version = row.purchase.updatedAt.getTime();
+  const movement = row.movements[0];
+  return reportPurchaseItemSnapshotV1Schema.parse({
+    kind: 'PURCHASE_ITEM_SNAPSHOT',
+    sourceService: 'inventory-service',
+    sourceEntityId: row.id,
+    sourceVersion: version,
+    operationId: movement?.operationId ?? null,
+    eventId: deterministicEventId(
+      `inventory:purchase-line:${row.id}:${version}`,
+    ),
+    occurredAt: row.purchase.updatedAt.toISOString(),
+    purchaseId: row.purchaseId,
+    purchaseLineId: row.id,
+    purchaseReference: row.purchase.reference,
+    purchasedAt: row.purchase.purchasedAt.toISOString(),
+    supplierId: row.purchase.supplierId,
+    supplierNameSnapshot: row.purchase.supplier.name,
+    itemId: row.itemId,
+    itemNameSnapshot: row.item.name,
+    categoryId: row.item.categoryId,
+    categoryNameSnapshot: row.item.category.name,
+    quantity: row.quantity.toFixed(),
+    unit: row.baseUnit,
+    unitCost: row.unitCost.toFixed(),
+    subtotal: row.subtotal.toFixed(),
+    status: row.purchase.status,
+  });
+};
 
 export const itemSnapshot = (row: Item) => {
   const updatedAt =

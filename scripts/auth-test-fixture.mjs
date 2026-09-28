@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 export function fixtureUser(action, email, password, role = 'OWNER') {
   assert.match(
     email,
-    /^fase(?:1[abc]|2[ab]|3|4|6|8a)\.[a-z0-9.]+@ambrosia\.test$/,
+    /^fase(?:1[abc]|2[ab]|3|4|6|8[ab])\.[a-z0-9.]+@ambrosia\.test$/,
   );
   assert.ok(['create', 'delete'].includes(action));
   assert.ok(['OWNER', 'ADMIN', 'OPERATOR', 'VIEWER'].includes(role));

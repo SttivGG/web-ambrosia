@@ -262,6 +262,39 @@ model ReportInventoryMovement {
   @@index([movementType, occurredAt])
 }
 
+model ReportPurchaseItem {
+  sourceService        String   @db.VarChar(80)
+  sourceEntityId       String   @id @db.Uuid
+  sourceVersion        BigInt
+  operationId          String?  @db.Uuid
+  eventId              String   @unique @db.Uuid
+  occurredAt           DateTime @db.Timestamptz(3)
+  processedAt          DateTime @default(now()) @db.Timestamptz(3)
+  purchaseId           String   @db.Uuid
+  purchaseLineId       String   @unique @db.Uuid
+  purchaseReference    String   @db.VarChar(80)
+  purchasedAt          DateTime @db.Timestamptz(3)
+  supplierId           String   @db.Uuid
+  supplierNameSnapshot String   @db.VarChar(160)
+  itemId               String   @db.Uuid
+  itemNameSnapshot     String   @db.VarChar(120)
+  categoryId           String   @db.Uuid
+  categoryNameSnapshot String   @db.VarChar(80)
+  quantity             Decimal  @db.Decimal(24, 10)
+  unit                 String   @db.VarChar(20)
+  unitCost             Decimal  @db.Decimal(48, 18)
+  subtotal             Decimal  @db.Decimal(48, 18)
+  status               String   @db.VarChar(16)
+
+  @@index([purchaseId])
+  @@index([supplierId, purchasedAt])
+  @@index([itemId, purchasedAt])
+  @@index([categoryId, purchasedAt])
+  @@index([status, purchasedAt])
+  @@index([operationId])
+  @@index([eventId])
+}
+
 model ReportProductionBatch {
   sourceService           String    @db.VarChar(80)
   sourceEntityId          String    @id @db.Uuid
@@ -290,6 +323,36 @@ model ReportProductionBatch {
   @@index([eventId])
   @@index([occurredAt])
   @@index([status, occurredAt])
+}
+
+model ReportPackagingOperation {
+  sourceService        String   @db.VarChar(80)
+  sourceEntityId       String   @id @db.Uuid
+  sourceVersion        BigInt
+  operationId          String?  @db.Uuid
+  eventId              String   @unique @db.Uuid
+  occurredAt           DateTime @db.Timestamptz(3)
+  processedAt          DateTime @default(now()) @db.Timestamptz(3)
+  packagingOperationId String   @unique @db.Uuid
+  batchId              String   @db.Uuid
+  batch                String   @db.VarChar(80)
+  finishedProductId    String   @db.Uuid
+  units                Decimal  @db.Decimal(24, 10)
+  netContentPerUnit    Decimal  @db.Decimal(24, 10)
+  netContentTotal      Decimal  @db.Decimal(24, 10)
+  unit                 String   @db.VarChar(20)
+  bulkCost             Decimal? @db.Decimal(48, 18)
+  materialsCost        Decimal? @db.Decimal(48, 18)
+  totalCost            Decimal? @db.Decimal(48, 18)
+  finishedUnitCost     Decimal? @db.Decimal(48, 18)
+  status               String   @db.VarChar(16)
+  packagedAt           DateTime @db.Timestamptz(3)
+
+  @@index([batchId, packagedAt])
+  @@index([finishedProductId, packagedAt])
+  @@index([status, packagedAt])
+  @@index([operationId])
+  @@index([eventId])
 }
 
 model ReportSaleMargin {

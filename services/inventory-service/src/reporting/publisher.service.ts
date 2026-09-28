@@ -7,7 +7,7 @@ import {
 import { REPORTING_SUBJECTS_V1 } from '@ambrosia/contracts';
 import { EventBusService } from '../event-bus.service';
 import { PrismaService } from '../prisma.service';
-import { itemSnapshot, movementSnapshot } from './snapshots';
+import { itemSnapshot, movementSnapshot, purchaseSnapshot } from './snapshots';
 
 @Injectable()
 export class ReportingPublisherService
@@ -28,7 +28,7 @@ export class ReportingPublisherService
     if (this.running) return;
     this.running = true;
     try {
-      const [items, movements] = await Promise.all([
+      const [items, movements, purchases] = await Promise.all([
         this.db.catalogItem.findMany({
           where: { trackInventory: true },
           include: { balance: true },
@@ -36,6 +36,14 @@ export class ReportingPublisherService
         }),
         this.db.inventoryMovement.findMany({
           include: { item: true },
+          orderBy: { id: 'asc' },
+        }),
+        this.db.purchaseLine.findMany({
+          include: {
+            item: { include: { category: true } },
+            purchase: { include: { supplier: true } },
+            movements: true,
+          },
           orderBy: { id: 'asc' },
         }),
       ]);
@@ -48,6 +56,11 @@ export class ReportingPublisherService
         await this.events.publishReporting(
           REPORTING_SUBJECTS_V1.inventory,
           movementSnapshot(row),
+        );
+      for (const row of purchases)
+        await this.events.publishReporting(
+          REPORTING_SUBJECTS_V1.inventory,
+          purchaseSnapshot(row),
         );
     } catch {
       this.logger.warn(

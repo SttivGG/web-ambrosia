@@ -1,6 +1,6 @@
 # ADR-014 — Arquitectura de Reporting y Read Models
 
-**Estado:** aceptada e implementada en Fase 8A.
+**Estado:** aceptada e implementada en Fases 8A y 8B.
 
 ## Contexto
 
@@ -8,7 +8,7 @@ Inventory es autoridad del catálogo, existencias, ledger y valoración; Product
 
 ## Decisión
 
-'finance-reporting-service' conserva Finance y añade un módulo lógico 'reporting/' con cuatro proyecciones propias: artículos de inventario, movimientos para Kardex, lotes de producción y líneas de venta con margen. Son datos derivados, reconstruibles y nunca se escriben de vuelta a los dominios origen.
+'finance-reporting-service' conserva Finance y añade un módulo lógico 'reporting/' con proyecciones propias: artículos de inventario, movimientos para Kardex, líneas de compra, lotes de producción, operaciones de envasado y líneas de venta con margen. Son datos derivados, reconstruibles y nunca se escriben de vuelta a los dominios origen. Las vistas de proveedores se agregan desde líneas de compra sin crear una autoridad paralela.
 
 Los dominios publican snapshots versionados en 'inventory.reporting.v1', 'production.reporting.v1' y 'finance.reporting.v1'. Un publicador repetible recorre únicamente la base propia de cada servicio y vuelve a emitir snapshots con 'eventId' determinista. La publicación es posterior e independiente de las transacciones operativas: una indisponibilidad de NATS o Reporting se registra y se reintenta, pero nunca invalida una compra, movimiento, lote o venta ya confirmados.
 
@@ -18,7 +18,7 @@ Los importes y cantidades viajan como strings Decimal y se persisten como 'NUMER
 
 ## Reconciliación y reconstrucción
 
-Inventory expone una API interna paginada y autenticada con la credencial técnica Finance–Inventory. La ruta no se publica en Nginx, rechaza cookies y entrega contratos v1, no modelos Prisma. Reporting puede reaplicar todos los snapshots; repetirla no duplica filas.
+Inventory expone una API interna paginada y autenticada con la credencial técnica Finance–Inventory. Production expone otra API interna con una credencial Reporting–Production independiente. Ninguna ruta se publica en Nginx; ambas rechazan cookies y entregan contratos v1, no modelos Prisma. Reporting puede reaplicar todos los snapshots; repetir la reconciliación no duplica filas.
 
 La reconstrucción administrativa elimina únicamente 'ReportInventoryItem', 'ReportInventoryMovement' y sus marcadores de eventos de Inventory, y luego consume de nuevo la API autoritativa. No modifica tablas ni operaciones de Inventory. Las rutas de reconciliación y reconstrucción requieren 'reports.manage'.
 
@@ -26,7 +26,7 @@ La reconstrucción administrativa elimina únicamente 'ReportInventoryItem', 'Re
 
 Las listas usan 'page' y 'pageSize', con máximo 100, y rangos UTC semiabiertos '[from, to)'. La persistencia permanece normalizada en UTC. La futura agrupación por día, semana o mes deberá convertir límites desde 'America/Bogota' a instantes UTC una sola vez antes de consultar; 8A no implementa agrupaciones.
 
-'reports.read' habilita inventario, movimientos, producción y health de Reporting. 'reports.finance' se exige además para márgenes. 'reports.manage' protege reconciliación y reconstrucción y se asigna inicialmente a OWNER y ADMIN. 'reports.export' queda reservado exclusivamente para futuras exportaciones; 8A no genera PDF, XLSX ni CSV.
+'reports.read' habilita cantidades y hechos de todos los reportes operativos y health de Reporting. Los endpoints operativos inspeccionan además 'reports.finance' y sustituyen por null costos, valores y subtotales si el claim no está presente; márgenes continúan exigiendo ambos permisos. 'reports.manage' protege reconciliación y reconstrucción y se asigna inicialmente a OWNER y ADMIN. 'reports.export' queda reservado exclusivamente para futuras exportaciones; 8A no genera PDF, XLSX ni CSV.
 
 ## Consecuencias
 

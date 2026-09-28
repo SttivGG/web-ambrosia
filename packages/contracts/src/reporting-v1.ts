@@ -19,6 +19,29 @@ const eventMetadata = {
   occurredAt: z.string().datetime(),
 };
 
+export const reportPurchaseItemSnapshotV1Schema = z
+  .object({
+    ...eventMetadata,
+    kind: z.literal('PURCHASE_ITEM_SNAPSHOT'),
+    sourceService: z.literal('inventory-service'),
+    purchaseId: id,
+    purchaseLineId: id,
+    purchaseReference: z.string().min(1).max(80),
+    purchasedAt: z.string().datetime(),
+    supplierId: id,
+    supplierNameSnapshot: z.string().min(1).max(160),
+    itemId: id,
+    itemNameSnapshot: z.string().min(1).max(120),
+    categoryId: id,
+    categoryNameSnapshot: z.string().min(1).max(80),
+    quantity,
+    unit: z.enum(BASE_UNITS_V1),
+    unitCost: costDecimalV1Schema,
+    subtotal: costDecimalV1Schema,
+    status: z.enum(['DRAFT', 'RECEIVED', 'CANCELLED']),
+  })
+  .strict();
+
 const reportInventoryItemSnapshotBaseV1Schema = z
   .object({
     ...eventMetadata,
@@ -71,9 +94,10 @@ export const reportInventoryMovementSnapshotV1Schema = z
 export const inventoryReportingEventV1Schema = z.discriminatedUnion('kind', [
   reportInventoryItemSnapshotV1Schema,
   reportInventoryMovementSnapshotV1Schema,
+  reportPurchaseItemSnapshotV1Schema,
 ]);
 
-export const productionReportingEventV1Schema = z
+export const reportProductionBatchSnapshotV1Schema = z
   .object({
     ...eventMetadata,
     kind: z.literal('BATCH_SNAPSHOT'),
@@ -94,6 +118,33 @@ export const productionReportingEventV1Schema = z
     packagingOutputQuantity: quantity.nullable(),
   })
   .strict();
+
+export const reportPackagingOperationSnapshotV1Schema = z
+  .object({
+    ...eventMetadata,
+    kind: z.literal('PACKAGING_SNAPSHOT'),
+    sourceService: z.literal('production-service'),
+    packagingOperationId: id,
+    batchId: id,
+    batch: z.string().min(1).max(80),
+    finishedProductId: id,
+    units: quantity,
+    netContentPerUnit: quantity,
+    netContentTotal: quantity,
+    unit: z.string().min(1).max(20),
+    bulkCost: nullableCost,
+    materialsCost: nullableCost,
+    totalCost: nullableCost,
+    finishedUnitCost: nullableCost,
+    status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED']),
+    packagedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const productionReportingEventV1Schema = z.discriminatedUnion('kind', [
+  reportProductionBatchSnapshotV1Schema,
+  reportPackagingOperationSnapshotV1Schema,
+]);
 
 export const financeReportingEventV1Schema = z
   .object({
@@ -142,6 +193,8 @@ export const reportMovementFiltersV1Schema = paging
   .extend({
     itemId: id.optional(),
     movementType: z.enum(MOVEMENT_TYPES_V1).optional(),
+    reference: z.string().trim().max(120).optional(),
+    operationId: id.optional(),
     ...range,
   })
   .strict()
@@ -164,6 +217,31 @@ export const reportFinanceFiltersV1Schema = paging
   })
   .strict()
   .refine(orderedRange, 'El rango debe cumplir [from, to).');
+export const reportPurchaseFiltersV1Schema = paging
+  .extend({
+    supplierId: id.optional(),
+    itemId: id.optional(),
+    categoryId: id.optional(),
+    status: z.enum(['DRAFT', 'RECEIVED', 'CANCELLED']).optional(),
+    ...range,
+  })
+  .strict()
+  .refine(orderedRange, 'El rango debe cumplir [from, to).');
+export const reportSupplierFiltersV1Schema = paging
+  .extend({
+    search: z.string().trim().max(160).optional(),
+    ...range,
+  })
+  .strict()
+  .refine(orderedRange, 'El rango debe cumplir [from, to).');
+export const reportPackagingFiltersV1Schema = paging
+  .extend({
+    productId: id.optional(),
+    status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED']).optional(),
+    ...range,
+  })
+  .strict()
+  .refine(orderedRange, 'El rango debe cumplir [from, to).');
 
 const projectionMetadata = z.object({
   sourceService: z.string(),
@@ -182,9 +260,18 @@ export const reportInventoryMovementV1Schema =
   reportInventoryMovementSnapshotV1Schema
     .omit({ kind: true })
     .merge(projectionMetadata);
-export const reportProductionBatchV1Schema = productionReportingEventV1Schema
+export const reportPurchaseItemV1Schema = reportPurchaseItemSnapshotV1Schema
   .omit({ kind: true })
-  .merge(projectionMetadata);
+  .merge(projectionMetadata)
+  .extend({ unitCost: nullableCost, subtotal: nullableCost });
+export const reportProductionBatchV1Schema =
+  reportProductionBatchSnapshotV1Schema
+    .omit({ kind: true })
+    .merge(projectionMetadata);
+export const reportPackagingOperationV1Schema =
+  reportPackagingOperationSnapshotV1Schema
+    .omit({ kind: true })
+    .merge(projectionMetadata);
 export const reportSaleMarginV1Schema = financeReportingEventV1Schema
   .omit({ kind: true })
   .merge(projectionMetadata);
@@ -204,9 +291,63 @@ export const reportFinanceListV1Schema = z.object({
   data: z.array(reportSaleMarginV1Schema),
   pagination: paginationV1Schema,
 });
+export const reportPurchaseListV1Schema = z.object({
+  data: z.array(reportPurchaseItemV1Schema),
+  pagination: paginationV1Schema,
+});
+export const reportSupplierV1Schema = z.object({
+  supplierId: id,
+  supplierName: z.string(),
+  totalPurchases: nullableCost,
+  purchaseCount: z.number().int().nonnegative(),
+  lastPurchaseAt: z.string().datetime().nullable(),
+  suppliedItems: z.number().int().nonnegative(),
+  averageCosts: z.array(
+    z.object({
+      itemId: id,
+      itemName: z.string(),
+      weightedAverageCost: nullableCost,
+    }),
+  ),
+  priceHistory: z.array(
+    z.object({
+      itemId: id,
+      itemName: z.string(),
+      purchasedAt: z.string().datetime(),
+      unitCost: nullableCost,
+    }),
+  ),
+});
+export const reportSupplierListV1Schema = z.object({
+  data: z.array(reportSupplierV1Schema),
+  pagination: paginationV1Schema,
+});
+export const reportPackagingListV1Schema = z.object({
+  data: z.array(reportPackagingOperationV1Schema),
+  pagination: paginationV1Schema,
+});
+export const reportSummaryV1Schema = z.object({
+  metrics: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+  comparison: z
+    .record(
+      z.string(),
+      z.object({
+        current: z.string().nullable(),
+        previous: z.string().nullable(),
+        changePercent: z.string().nullable(),
+      }),
+    )
+    .optional(),
+});
 export const inventoryReconciliationPageV1Schema = z.object({
   items: z.array(reportInventoryItemSnapshotV1Schema),
   movements: z.array(reportInventoryMovementSnapshotV1Schema),
+  purchases: z.array(reportPurchaseItemSnapshotV1Schema),
+  pagination: paginationV1Schema,
+});
+export const productionReconciliationPageV1Schema = z.object({
+  batches: z.array(reportProductionBatchSnapshotV1Schema),
+  packaging: z.array(reportPackagingOperationSnapshotV1Schema),
   pagination: paginationV1Schema,
 });
 export const reportingSnapshotQueryV1Schema = paging.strict();
@@ -218,6 +359,8 @@ export const reportHealthV1Schema = z.object({
     inventoryMovements: z.number().int().nonnegative(),
     productionBatches: z.number().int().nonnegative(),
     saleMargins: z.number().int().nonnegative(),
+    purchaseItems: z.number().int().nonnegative(),
+    packagingOperations: z.number().int().nonnegative(),
   }),
 });
 
@@ -242,8 +385,20 @@ export type ReportProductionFiltersV1 = z.infer<
 export type ReportFinanceFiltersV1 = z.infer<
   typeof reportFinanceFiltersV1Schema
 >;
+export type ReportPurchaseFiltersV1 = z.infer<
+  typeof reportPurchaseFiltersV1Schema
+>;
+export type ReportSupplierFiltersV1 = z.infer<
+  typeof reportSupplierFiltersV1Schema
+>;
+export type ReportPackagingFiltersV1 = z.infer<
+  typeof reportPackagingFiltersV1Schema
+>;
 export type ReportingSnapshotQueryV1 = z.infer<
   typeof reportingSnapshotQueryV1Schema
 >;
 export type ReportHealthV1 = z.infer<typeof reportHealthV1Schema>;
 export type ReportInventoryListV1 = z.infer<typeof reportInventoryListV1Schema>;
+export type ReportPurchaseListV1 = z.infer<typeof reportPurchaseListV1Schema>;
+export type ReportSupplierListV1 = z.infer<typeof reportSupplierListV1Schema>;
+export type ReportPackagingListV1 = z.infer<typeof reportPackagingListV1Schema>;
