@@ -34,6 +34,18 @@ type Summary = {
     }
   >;
 };
+type OperationalOverview = {
+  purchases: Summary;
+  inventory: Summary;
+  production: Summary;
+  waste: Summary;
+  packagingOperations: number;
+  packagingUnits: string | null;
+  hasInventoryValue: boolean;
+  hasProductionOutput: boolean;
+  hasWaste: boolean;
+  hasData: boolean;
+};
 type Filters = {
   from: string;
   to: string;
@@ -66,7 +78,7 @@ const views: { id: View; label: string; description: string }[] = [
   {
     id: 'resumen',
     label: 'Resumen',
-    description: 'Estado de las proyecciones operativas derivadas.',
+    description: 'Indicadores operativos consolidados para el período.',
   },
   {
     id: 'compras',
@@ -214,6 +226,73 @@ const labels: Record<string, string> = {
   lotesAnalizados: 'Lotes analizados',
   mermaPromedioPorcentual: 'Merma promedio',
 };
+const projectionLabels: Record<string, string> = {
+  inventoryItems: 'Artículos de inventario',
+  inventoryMovements: 'Movimientos',
+  productionBatches: 'Lotes de producción',
+  saleMargins: 'Registros financieros',
+  purchaseItems: 'Líneas de compra',
+  packagingOperations: 'Operaciones de envasado',
+};
+const decimalParts = (value: string) => {
+  const [integer = '0', fraction = ''] = value.split('.');
+  return { integer, fraction };
+};
+const addDecimals = (values: string[]) => {
+  if (!values.length) return null;
+  const scale = Math.max(
+    ...values.map((value) => decimalParts(value).fraction.length),
+  );
+  const total = values.reduce((sum, value) => {
+    const { integer, fraction } = decimalParts(value);
+    return sum + BigInt(integer + fraction.padEnd(scale, '0'));
+  }, 0n);
+  const raw = total.toString().padStart(scale + 1, '0');
+  if (!scale) return raw;
+  const fraction = raw.slice(-scale).replace(/0+$/, '');
+  return fraction
+    ? raw.slice(0, -scale) + '.' + fraction
+    : raw.slice(0, -scale);
+};
+const isPositiveDecimal = (value: unknown) =>
+  typeof value === 'string' &&
+  /^\d+(?:\.\d+)?$/.test(value) &&
+  BigInt(value.replace('.', '')) > 0n;
+const formatDecimal = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined || value === '') return 'Sin datos';
+  const { integer, fraction } = decimalParts(String(value));
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return fraction ? grouped + ',' + fraction : grouped;
+};
+const metric = (summary: Summary, key: string) => summary.metrics[key];
+
+function MetricCard({
+  label,
+  value,
+  kind = 'quantity',
+  note,
+  warning = false,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  kind?: 'currency' | 'quantity' | 'percent';
+  note?: string;
+  warning?: boolean;
+}) {
+  const formatted = formatDecimal(value);
+  return (
+    <article className={warning ? 'is-warning' : undefined}>
+      <span>{label}</span>
+      <strong>
+        {kind === 'currency' && formatted !== 'Sin datos' ? '$ ' : ''}
+        {formatted}
+        {kind === 'currency' && formatted !== 'Sin datos' ? ' COP' : ''}
+        {kind === 'percent' && formatted !== 'Sin datos' ? ' %' : ''}
+      </strong>
+      {note && <small>{note}</small>}
+    </article>
+  );
+}
 const dateValue = (value: unknown) =>
   typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value)
     ? new Intl.DateTimeFormat('es-CO', {
@@ -246,6 +325,7 @@ function display(row: Row, key: string) {
 export function ReportingInfrastructure() {
   const { permissions } = useSession();
   const allowed = permissions.includes('reports.read');
+  const canViewFinance = permissions.includes('reports.finance');
   const [view, setView] = useState<View>('resumen');
   const [pageNumber, setPageNumber] = useState(1);
   const [draftFilters, setDraftFilters] = useState<Filters>(emptyFilters);
@@ -254,6 +334,7 @@ export function ReportingInfrastructure() {
     status: 'loading' | 'forbidden' | 'error' | 'ready';
     page?: Page;
     summary?: Summary;
+    overview?: OperationalOverview;
   }>({ status: 'loading' });
   const selected = useMemo(
     () => views.find((entry) => entry.id === view)!,
@@ -303,11 +384,92 @@ export function ReportingInfrastructure() {
     }
     try {
       let page: Page, summary: Summary | undefined;
+      let overview: OperationalOverview | undefined;
       if (view === 'resumen') {
-        const health = await reportingApi.health();
+        const overviewParams = new URLSearchParams(params);
+        overviewParams.set('page', '1');
+        overviewParams.set('pageSize', '100');
+        const [
+          health,
+          purchases,
+          inventory,
+          production,
+          waste,
+          inventoryPage,
+          productionPage,
+          packagingPage,
+        ] = await Promise.all([
+          reportingApi.health(),
+          reportingApi.purchaseSummary(overviewParams),
+          reportingApi.inventorySummary(overviewParams),
+          reportingApi.productionSummary(overviewParams),
+          reportingApi.wasteSummary(overviewParams),
+          reportingApi.inventory(overviewParams),
+          reportingApi.production(overviewParams),
+          reportingApi.packaging(overviewParams),
+        ]);
+        const remainingPages = async <T,>(
+          first: { data: T[]; pagination: { totalPages: number } },
+          request: (values: URLSearchParams) => Promise<{
+            data: T[];
+            pagination: { totalPages: number };
+          }>,
+        ) => {
+          if (first.pagination.totalPages <= 1) return first.data;
+          const pages = await Promise.all(
+            Array.from(
+              { length: first.pagination.totalPages - 1 },
+              (_, index) => {
+                const values = new URLSearchParams(overviewParams);
+                values.set('page', String(index + 2));
+                return request(values);
+              },
+            ),
+          );
+          return [...first.data, ...pages.flatMap((entry) => entry.data)];
+        };
+        const [inventoryRows, productionRows, packagingRows] =
+          await Promise.all([
+            remainingPages(inventoryPage, reportingApi.inventory),
+            remainingPages(productionPage, reportingApi.production),
+            remainingPages(packagingPage, reportingApi.packaging),
+          ]);
+        const purchaseCount = Number(metric(purchases, 'numeroCompras') ?? 0);
+        const stockItems = Number(
+          metric(inventory, 'articulosConExistencia') ?? 0,
+        );
+        const batches = Number(metric(production, 'lotes') ?? 0);
+        overview = {
+          purchases,
+          inventory,
+          production,
+          waste,
+          packagingOperations: packagingPage.pagination.totalItems,
+          packagingUnits: addDecimals(
+            packagingRows.map((entry) => entry.units),
+          ),
+          hasInventoryValue: inventoryRows.some(
+            (entry) =>
+              isPositiveDecimal(entry.onHand) && entry.inventoryValue !== null,
+          ),
+          hasProductionOutput: productionRows.some(
+            (entry) => entry.outputQuantity !== null,
+          ),
+          hasWaste: productionRows.some(
+            (entry) => entry.wasteQuantity !== null,
+          ),
+          hasData:
+            purchaseCount > 0 ||
+            stockItems > 0 ||
+            batches > 0 ||
+            packagingPage.pagination.totalItems > 0,
+        };
         page = {
           data: Object.entries(health.projections).map(
-            ([proyeccion, cantidad]) => ({ proyeccion, cantidad }),
+            ([proyeccion, cantidad]) => ({
+              proyeccion: projectionLabels[proyeccion] ?? 'Otra proyección',
+              cantidad,
+            }),
           ),
           pagination: {
             page: 1,
@@ -349,7 +511,7 @@ export function ReportingInfrastructure() {
           reportingApi.wasteSummary(params),
         ]);
       else page = await reportingApi.packaging(params);
-      setState({ status: 'ready', page, summary });
+      setState({ status: 'ready', page, summary, overview });
     } catch (error) {
       setState({
         status:
@@ -369,6 +531,7 @@ export function ReportingInfrastructure() {
     setDraftFilters(emptyFilters);
     setFilters(emptyFilters);
   };
+  const overview = state.overview;
   return (
     <section className="reports" aria-labelledby="reports-title">
       <header className="page-intro">
@@ -398,6 +561,55 @@ export function ReportingInfrastructure() {
           <p>{selected.description}</p>
         </div>
       </div>
+      {view === 'resumen' && (
+        <form
+          className="reports-filters reports-period-filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setPageNumber(1);
+            setFilters(draftFilters);
+          }}
+        >
+          <label>
+            Desde
+            <input
+              type="date"
+              value={draftFilters.from}
+              onChange={(event) =>
+                setDraftFilters((value) => ({
+                  ...value,
+                  from: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label>
+            Hasta (exclusivo)
+            <input
+              type="date"
+              value={draftFilters.to}
+              onChange={(event) =>
+                setDraftFilters((value) => ({
+                  ...value,
+                  to: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <button type="submit">Aplicar filtros</button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setDraftFilters(emptyFilters);
+              setFilters(emptyFilters);
+              setPageNumber(1);
+            }}
+          >
+            Limpiar
+          </button>
+        </form>
+      )}
       {view !== 'resumen' && (
         <form
           className="reports-filters"
@@ -697,86 +909,313 @@ export function ReportingInfrastructure() {
       )}
       {state.status === 'ready' && (
         <>
-          {state.summary && (
-            <div className="reports-summary" aria-label="Indicadores">
-              {Object.entries(state.summary.metrics).map(([key, value]) => (
-                <article key={key}>
-                  <span>{labels[key] ?? key}</span>
-                  <strong>{value ?? 'Restringido'}</strong>
-                  {state.summary?.comparison?.[key] && (
-                    <small>
-                      Anterior: {state.summary.comparison[key]!.previous ?? '—'}{' '}
-                      · Cambio:{' '}
-                      {state.summary.comparison[key]!.changePercent ?? '—'}%
-                    </small>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-          {!state.page?.data.length ? (
-            <div className="reports-state">
-              <p className="eyebrow">SIN RESULTADOS</p>
-              <h2>No hay datos para estos filtros</h2>
-              <p>Ajusta el período o espera la próxima reconciliación.</p>
+          {view === 'resumen' && overview ? (
+            <div className="reports-overview">
+              <section
+                className="reports-overview-content"
+                aria-labelledby="operational-summary-title"
+              >
+                <header className="reports-overview-intro">
+                  <p className="eyebrow">PANORAMA DEL PERÍODO</p>
+                  <h3 id="operational-summary-title">Resumen operativo</h3>
+                  <p>
+                    Compras, existencias y transformación consolidadas desde
+                    Reporting.
+                  </p>
+                </header>
+                {!overview.hasData ? (
+                  <div className="reports-state reports-state-compact">
+                    <p className="eyebrow">SIN RESULTADOS</p>
+                    <h3>No hay actividad operativa para estos filtros</h3>
+                    <p>Ajusta el período o espera la próxima reconciliación.</p>
+                  </div>
+                ) : (
+                  <div className="reports-kpi-sections">
+                    <section aria-labelledby="purchases-kpis-title">
+                      <h3 id="purchases-kpis-title">Compras</h3>
+                      <div className="reports-summary">
+                        {canViewFinance && (
+                          <MetricCard
+                            label="Total comprado del período"
+                            value={
+                              Number(
+                                metric(overview.purchases, 'numeroCompras'),
+                              ) > 0
+                                ? metric(overview.purchases, 'totalComprado')
+                                : null
+                            }
+                            kind="currency"
+                          />
+                        )}
+                        <MetricCard
+                          label="Número de compras"
+                          value={
+                            Number(
+                              metric(overview.purchases, 'numeroCompras'),
+                            ) > 0
+                              ? metric(overview.purchases, 'numeroCompras')
+                              : null
+                          }
+                        />
+                        <MetricCard
+                          label="Proveedores utilizados"
+                          value={
+                            Number(
+                              metric(overview.purchases, 'numeroCompras'),
+                            ) > 0
+                              ? metric(overview.purchases, 'proveedores')
+                              : null
+                          }
+                        />
+                      </div>
+                    </section>
+                    <section aria-labelledby="inventory-kpis-title">
+                      <h3 id="inventory-kpis-title">Inventario</h3>
+                      <div className="reports-summary">
+                        {canViewFinance && (
+                          <MetricCard
+                            label="Valor del inventario valorado"
+                            value={
+                              overview.hasInventoryValue
+                                ? metric(
+                                    overview.inventory,
+                                    'valorInventarioValorado',
+                                  )
+                                : null
+                            }
+                            kind="currency"
+                            note={
+                              !overview.hasInventoryValue &&
+                              Number(
+                                metric(
+                                  overview.inventory,
+                                  'articulosConExistencia',
+                                ),
+                              ) > 0
+                                ? 'La existencia disponible no tiene valoración.'
+                                : undefined
+                            }
+                          />
+                        )}
+                        <MetricCard
+                          label="Artículos con existencia"
+                          value={
+                            Number(
+                              metric(
+                                overview.inventory,
+                                'articulosConExistencia',
+                              ),
+                            ) > 0
+                              ? metric(
+                                  overview.inventory,
+                                  'articulosConExistencia',
+                                )
+                              : null
+                          }
+                        />
+                        <MetricCard
+                          label="Artículos sin valorar"
+                          value={
+                            Number(
+                              metric(
+                                overview.inventory,
+                                'articulosConExistencia',
+                              ),
+                            ) > 0
+                              ? metric(
+                                  overview.inventory,
+                                  'articulosSinValorar',
+                                )
+                              : null
+                          }
+                          note="UNVALUED · sin costo ni valor inventado"
+                          warning={
+                            Number(
+                              metric(overview.inventory, 'articulosSinValorar'),
+                            ) > 0
+                          }
+                        />
+                      </div>
+                    </section>
+                    <section aria-labelledby="production-kpis-title">
+                      <h3 id="production-kpis-title">Producción</h3>
+                      <div className="reports-summary">
+                        <MetricCard
+                          label="Lotes producidos"
+                          value={
+                            Number(metric(overview.production, 'lotes')) > 0
+                              ? metric(overview.production, 'lotes')
+                              : null
+                          }
+                        />
+                        <MetricCard
+                          label="Producción total"
+                          value={
+                            overview.hasProductionOutput
+                              ? metric(overview.production, 'cantidadProducida')
+                              : null
+                          }
+                        />
+                        <MetricCard
+                          label="Rendimiento promedio"
+                          value={metric(
+                            overview.production,
+                            'rendimientoPromedio',
+                          )}
+                          kind="percent"
+                        />
+                        <MetricCard
+                          label="Merma total"
+                          value={
+                            overview.hasWaste
+                              ? metric(overview.waste, 'mermaTotal')
+                              : null
+                          }
+                        />
+                        <MetricCard
+                          label="Merma promedio"
+                          value={metric(
+                            overview.waste,
+                            'mermaPromedioPorcentual',
+                          )}
+                          kind="percent"
+                        />
+                      </div>
+                    </section>
+                    {overview.packagingOperations > 0 && (
+                      <section aria-labelledby="packaging-kpis-title">
+                        <h3 id="packaging-kpis-title">Envasado</h3>
+                        <div className="reports-summary">
+                          <MetricCard
+                            label="Operaciones de envasado"
+                            value={overview.packagingOperations}
+                          />
+                          <MetricCard
+                            label="Unidades envasadas"
+                            value={overview.packagingUnits}
+                          />
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                )}
+              </section>
+              <details className="reports-sync-state">
+                <summary>
+                  <span>Estado de sincronización</span>
+                  <small>Conteo técnico de proyecciones</small>
+                </summary>
+                <div className="reports-table-card">
+                  <div className="reports-table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Proyección</th>
+                          <th scope="col">Registros</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {state.page?.data.map((row, index) => (
+                          <tr key={String(row.proyeccion ?? index)}>
+                            <td data-label="Proyección">
+                              {display(row, 'proyeccion')}
+                            </td>
+                            <td data-label="Registros">
+                              {display(row, 'cantidad')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
             </div>
           ) : (
-            <div className="reports-table-card">
-              <div className="reports-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      {columns[view].map((column) => (
-                        <th key={column.key} scope="col">
-                          {column.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.page.data.map((row, index) => (
-                      <tr
-                        key={String(
-                          row.sourceEntityId ?? row.supplierId ?? index,
-                        )}
-                      >
-                        {columns[view].map((column) => (
-                          <td key={column.key} data-label={column.label}>
-                            {display(row, column.key)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="reports-pagination">
-                <span>
-                  Página {state.page.pagination.page} de{' '}
-                  {Math.max(1, state.page.pagination.totalPages)} ·{' '}
-                  {state.page.pagination.totalItems} registros
-                </span>
-                <div>
-                  <button
-                    type="button"
-                    disabled={state.page.pagination.page <= 1}
-                    onClick={() => setPageNumber((value) => value - 1)}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    type="button"
-                    disabled={
-                      state.page.pagination.page >=
-                      state.page.pagination.totalPages
-                    }
-                    onClick={() => setPageNumber((value) => value + 1)}
-                  >
-                    Siguiente
-                  </button>
+            <>
+              {state.summary && (
+                <div className="reports-summary" aria-label="Indicadores">
+                  {Object.entries(state.summary.metrics).map(([key, value]) => (
+                    <article key={key}>
+                      <span>{labels[key] ?? key}</span>
+                      <strong>{value ?? 'Restringido'}</strong>
+                      {state.summary?.comparison?.[key] && (
+                        <small>
+                          Anterior:{' '}
+                          {state.summary.comparison[key]!.previous ?? '—'} ·
+                          Cambio:{' '}
+                          {state.summary.comparison[key]!.changePercent ?? '—'}%
+                        </small>
+                      )}
+                    </article>
+                  ))}
                 </div>
-              </div>
-            </div>
+              )}
+              {!state.page?.data.length ? (
+                <div className="reports-state">
+                  <p className="eyebrow">SIN RESULTADOS</p>
+                  <h2>No hay datos para estos filtros</h2>
+                  <p>Ajusta el período o espera la próxima reconciliación.</p>
+                </div>
+              ) : (
+                <div className="reports-table-card">
+                  <div className="reports-table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          {columns[view].map((column) => (
+                            <th key={column.key} scope="col">
+                              {column.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {state.page.data.map((row, index) => (
+                          <tr
+                            key={String(
+                              row.sourceEntityId ?? row.supplierId ?? index,
+                            )}
+                          >
+                            {columns[view].map((column) => (
+                              <td key={column.key} data-label={column.label}>
+                                {display(row, column.key)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="reports-pagination">
+                    <span>
+                      Página {state.page.pagination.page} de{' '}
+                      {Math.max(1, state.page.pagination.totalPages)} ·{' '}
+                      {state.page.pagination.totalItems} registros
+                    </span>
+                    <div>
+                      <button
+                        type="button"
+                        disabled={state.page.pagination.page <= 1}
+                        onClick={() => setPageNumber((value) => value - 1)}
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          state.page.pagination.page >=
+                          state.page.pagination.totalPages
+                        }
+                        onClick={() => setPageNumber((value) => value + 1)}
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
